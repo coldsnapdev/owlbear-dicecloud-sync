@@ -110,6 +110,19 @@ export async function fetchCreatureStats(
     (p) => p?.type === "attribute" && p?.variableName === "armor" && !p?.removed
   );
 
+  // Temporary diagnostic: dump exactly what DiceCloud sent back for this
+  // creature, and what our two attribute filters matched, so a sheet whose
+  // fields come back undefined can be diagnosed from the console instead
+  // of guessed at. Filter the console to "dicecloud-raw" to find this.
+  console.log(`[dicecloud-raw] creature ${creatureId}: name=`, creature?.name);
+  console.log(`[dicecloud-raw] creature ${creatureId}: full creature doc:`, creature);
+  console.log(
+    `[dicecloud-raw] creature ${creatureId}: ${props.length} propert(y/ies), ` +
+      `attribute-type props:`,
+    props.filter((p) => p?.type === "attribute")
+  );
+  console.log(`[dicecloud-raw] creature ${creatureId}: matched hpBar =`, hpBar, "matched acStat =", acStat);
+
   return {
     name: creature?.name,
     currentHP: numberOrUndefined(hpBar?.value),
