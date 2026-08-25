@@ -99,9 +99,21 @@ export async function fetchCreatureStats(
   }
 
   const body = await res.json();
-  const data = body.data;
+
+  // Temporary diagnostic: the previous round showed `data.creatures[0]`
+  // coming back undefined for every character tried, which means the
+  // *shape* we're assuming (body.data.creatures[...]) is wrong somewhere,
+  // not any one sheet's contents. Log the actual top-level shape of what
+  // came back instead of guessing at another field path. Filter the
+  // console to "dicecloud-raw" to find this.
+  console.log(`[dicecloud-raw] creature ${creatureId}: top-level keys of response body:`, Object.keys(body ?? {}));
+  console.log(`[dicecloud-raw] creature ${creatureId}: full response body:`, JSON.stringify(body).slice(0, 2000));
+
+  const data = body.data ?? body;
   const creature = data?.creatures?.[0];
   const props: any[] = data?.creatureProperties ?? [];
+
+  console.log(`[dicecloud-raw] creature ${creatureId}: keys of "data":`, Object.keys(data ?? {}));
 
   const hpBar = props.find(
     (p) => p?.type === "attribute" && p?.attributeType === "healthBar" && !p?.removed
@@ -109,19 +121,6 @@ export async function fetchCreatureStats(
   const acStat = props.find(
     (p) => p?.type === "attribute" && p?.variableName === "armor" && !p?.removed
   );
-
-  // Temporary diagnostic: dump exactly what DiceCloud sent back for this
-  // creature, and what our two attribute filters matched, so a sheet whose
-  // fields come back undefined can be diagnosed from the console instead
-  // of guessed at. Filter the console to "dicecloud-raw" to find this.
-  console.log(`[dicecloud-raw] creature ${creatureId}: name=`, creature?.name);
-  console.log(`[dicecloud-raw] creature ${creatureId}: full creature doc:`, creature);
-  console.log(
-    `[dicecloud-raw] creature ${creatureId}: ${props.length} propert(y/ies), ` +
-      `attribute-type props:`,
-    props.filter((p) => p?.type === "attribute")
-  );
-  console.log(`[dicecloud-raw] creature ${creatureId}: matched hpBar =`, hpBar, "matched acStat =", acStat);
 
   return {
     name: creature?.name,
