@@ -72,12 +72,22 @@ export async function fetchCreatureStats(
   creatureId: string,
   token?: string
 ): Promise<CreatureStats> {
-  const headers: Record<string, string> = {};
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  // Deliberately NOT sent as an `Authorization: Bearer <token>` header.
+  // DiceCloud's REST framework (simple:rest) only attaches CORS headers to
+  // a request when there's an explicit route registered for that exact
+  // method + path — and DiceCloud registered a GET handler for
+  // /api/creature/:id but never an OPTIONS one. Any header that isn't on
+  // the CORS-safelist (Authorization included) forces the browser to send
+  // a preflight OPTIONS request first, which then hits no route, gets no
+  // CORS headers back, and gets blocked — confirmed against a live
+  // request. The same framework also accepts the token as a URL query
+  // parameter (?access_token=...), which is NOT a preflight trigger, so
+  // this sidesteps the gap entirely without needing anything from
+  // DiceCloud's side.
+  const url = new URL(`${DICECLOUD_BASE}/api/creature/${creatureId}`);
+  if (token) url.searchParams.set("access_token", token);
 
-  const res = await fetch(`${DICECLOUD_BASE}/api/creature/${creatureId}`, {
-    headers,
-  });
+  const res = await fetch(url.toString());
 
   if (!res.ok) {
     const body = await safeJson(res);
