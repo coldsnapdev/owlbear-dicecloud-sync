@@ -36,7 +36,7 @@ app.innerHTML = `
     <div id="mapping-list">Loading tokens…</div>
   </section>
 
-  <p class="hint" style="opacity:0.5;">build 7 — logs the raw DiceCloud response for a saved character</p>
+  <p class="hint" style="opacity:0.5;">build 8</p>
 `;
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;
