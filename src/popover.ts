@@ -2,11 +2,16 @@ import OBR, { type Item } from "@owlbear-rodeo/sdk";
 import { diceCloudLogin, fetchCreatureStats, parseCreatureId, type DiceCloudSession } from "./dicecloud";
 import { isForgeUnit, readForgeStats } from "./forge";
 import {
-  getMappings,
+  getCharacterLinks,
   getStoredCredentials,
-  setStoredCredentials,
-  upsertMapping,
+  ignoreItemName,
+  isNameIgnored,
+  reconcileMappings,
   removeMapping,
+  setStoredCredentials,
+  unignoreItemName,
+  upsertMapping,
+  type CharacterLink,
   type Mapping,
 } from "./config";
 
@@ -31,18 +36,23 @@ app.innerHTML = `
     <h2>Party mapping</h2>
     <p class="hint">
       For each Forge unit, paste the DiceCloud character sheet URL to sync
-      it from.
+      it from. A saved link is remembered by token name, so it reattaches
+      automatically next time that name shows up in any scene.
     </p>
     <div id="mapping-list">Loading tokens…</div>
+    <div id="ignored-list"></div>
+    <div id="debug-list"></div>
   </section>
 
-  <p class="hint" style="opacity:0.5;">build 8</p>
+  <p class="hint" style="opacity:0.5;">build 10 — always-on scene item debug list</p>
 `;
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;
 const passwordInput = document.getElementById("password") as HTMLInputElement;
 const credsStatus = document.getElementById("creds-status")!;
 const mappingList = document.getElementById("mapping-list")!;
+const ignoredList = document.getElementById("ignored-list")!;
+const debugList = document.getElementById("debug-list")!;
 
 async function initCredentialsForm() {
   const stored = getStoredCredentials();
@@ -80,9 +90,7 @@ document.getElementById("save-creds")!.addEventListener("click", async () => {
 // Cache the DiceCloud session instead of re-hitting POST /api/login on every
 // Save click / row render — besides being wasteful, doing that repeatedly in
 // quick succession is a plausible way to trip a rate-limit or bot-protection
-// layer in front of dicecloud.com, which would surface to us as a bare
-// "Failed to fetch" (no CORS headers on a challenge/block response) rather
-// than a real DiceCloud error message.
+// layer in front of dicecloud.com.
 let cachedSession: DiceCloudSession | undefined;
 
 async function getSession(): Promise<DiceCloudSession | undefined> {
@@ -98,14 +106,12 @@ async function getSession(): Promise<DiceCloudSession | undefined> {
 let itemChangeListenerAttached = false;
 
 async function renderMappings() {
-  // Scene APIs throw if called before a scene is actually open/ready (e.g.
-  // the room has no scene loaded yet, or is mid-transition). That throw was
-  // previously uncaught, which left the popover stuck on the static
-  // "Loading tokens…" text forever with nothing logged, because our
-  // diagnostics only ran *after* this point. Guard + try/catch fix both.
+  // Scene APIs throw if called before a scene is actually open/ready.
   const ready = await OBR.scene.isReady();
   if (!ready) {
     mappingList.innerHTML = `<p class="hint">Waiting for a scene to be open…</p>`;
+    ignoredList.innerHTML = "";
+    debugList.innerHTML = "";
     return;
   }
 
@@ -118,47 +124,42 @@ async function renderMappings() {
 
   let items: Item[];
   let mappings: Mapping[];
+  let links: CharacterLink[];
   try {
-    [items, mappings] = await Promise.all([
-      OBR.scene.items.getItems(),
-      getMappings(),
-    ]);
+    items = await OBR.scene.items.getItems();
+    // Auto-attach any token whose name we already have a DiceCloud link
+    // for (from another scene), then load that reconciled list.
+    [mappings, links] = await Promise.all([reconcileMappings(items), getCharacterLinks()]);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[dicecloud-sync] failed to load scene items/mappings:", err);
     mappingList.innerHTML = `<p class="hint" style="color:#c0392b;">Couldn't load scene data: ${escapeHtml(message)}</p>`;
+    ignoredList.innerHTML = "";
+    debugList.innerHTML = "";
     return;
   }
 
-  // Diagnostic logging: filter the browser console to "dicecloud-sync" to
-  // see exactly what Owlbear returned, whether or not the Forge-unit
-  // filter below matches anything.
-  console.log(`[dicecloud-sync] scene has ${items.length} item(s) total`);
-  for (const item of items) {
-    console.log(
-      `[dicecloud-sync] item "${item.name}" (${item.id}) metadata keys:`,
-      Object.keys(item.metadata)
-    );
+  const allForgeItems = items.filter((item: Item) => isForgeUnit(item.metadata));
+  const visibleForgeItems = allForgeItems.filter((item) => !isNameIgnored(links, item.name));
+  const ignoredLinks = links.filter((l) => l.ignored);
+
+  renderIgnoredList(ignoredLinks);
+  renderDebugList(items, allForgeItems);
+
+  if (allForgeItems.length === 0) {
+    mappingList.innerHTML = `<p class="hint">No Forge units found in this scene yet — see "Scene items" below to check why.</p>`;
+    return;
   }
 
-  const forgeItems = items.filter((item: Item) => isForgeUnit(item.metadata));
-  console.log(`[dicecloud-sync] ${forgeItems.length} item(s) matched isForgeUnit()`);
-
-  if (forgeItems.length === 0) {
-    const itemSummary = items
-      .map((i) => `${escapeHtml(i.name)} [${Object.keys(i.metadata).join(", ") || "no metadata"}]`)
-      .join("<br/>");
-    mappingList.innerHTML = `
-      <p class="hint">No Forge units found in this scene yet.</p>
-      <p class="hint" style="opacity:0.7;">Saw ${items.length} scene item(s):<br/>${itemSummary || "(none)"}</p>
-    `;
+  if (visibleForgeItems.length === 0) {
+    mappingList.innerHTML = `<p class="hint">All ${allForgeItems.length} Forge unit(s) in this scene are hidden — see below.</p>`;
     return;
   }
 
   const mappingByItem = new Map<string, Mapping>(mappings.map((m) => [m.itemId, m]));
 
   mappingList.innerHTML = "";
-  for (const item of forgeItems) {
+  for (const item of visibleForgeItems) {
     const existing = mappingByItem.get(item.id);
     const forgeStats = readForgeStats(item.metadata);
 
@@ -177,18 +178,20 @@ async function renderMappings() {
       />
       <div class="row">
         <button class="save-mapping">Save</button>
+        <button class="ignore-item secondary" type="button">Not connecting this</button>
         <span class="status"></span>
       </div>
     `;
 
     const input = row.querySelector(".creature-url") as HTMLInputElement;
-    const button = row.querySelector(".save-mapping") as HTMLButtonElement;
+    const saveButton = row.querySelector(".save-mapping") as HTMLButtonElement;
+    const ignoreButton = row.querySelector(".ignore-item") as HTMLButtonElement;
     const status = row.querySelector(".status") as HTMLSpanElement;
 
-    button.addEventListener("click", async () => {
+    saveButton.addEventListener("click", async () => {
       const creatureId = parseCreatureId(input.value);
       if (!creatureId) {
-        if (existing) await removeMapping(item.id);
+        if (existing) await removeMapping(item.id, item.name);
         status.textContent = "Cleared.";
         status.className = "status";
         return;
@@ -223,8 +226,74 @@ async function renderMappings() {
       }
     });
 
+    ignoreButton.addEventListener("click", async () => {
+      await ignoreItemName(item.name);
+      renderMappings();
+    });
+
     mappingList.appendChild(row);
   }
+}
+
+function renderIgnoredList(ignoredLinks: CharacterLink[]) {
+  if (ignoredLinks.length === 0) {
+    ignoredList.innerHTML = "";
+    return;
+  }
+
+  const rows = ignoredLinks
+    .map(
+      (link) => `
+        <div class="hidden-row" data-name="${escapeHtml(link.itemName)}">
+          <span>${escapeHtml(link.itemName)}</span>
+          <button class="unignore-item secondary" type="button">Show again</button>
+        </div>
+      `
+    )
+    .join("");
+
+  ignoredList.innerHTML = `
+    <details class="hidden-tokens">
+      <summary>${ignoredLinks.length} hidden token name(s) (e.g. NPCs)</summary>
+      ${rows}
+    </details>
+  `;
+
+  ignoredList.querySelectorAll(".unignore-item").forEach((button) => {
+    button.addEventListener("click", async (e) => {
+      const row = (e.currentTarget as HTMLElement).closest(".hidden-row") as HTMLElement;
+      const name = row.dataset.name!;
+      await unignoreItemName(name);
+      renderMappings();
+    });
+  });
+}
+
+// Always-on (not just on error) view of exactly what's in the scene right
+// now and whether Forge has put its tracking metadata on each item yet.
+// Forge only writes that metadata once IT starts tracking a token in a
+// given scene — a token can look completely normal on the map and still be
+// invisible to us until Forge has touched it there, which is the usual
+// reason "the same" token isn't found after a scene change.
+function renderDebugList(items: Item[], forgeItems: Item[]) {
+  const forgeIds = new Set(forgeItems.map((i) => i.id));
+  const rows = items
+    .map((item) => {
+      const tracked = forgeIds.has(item.id);
+      const stats = tracked ? readForgeStats(item.metadata) : undefined;
+      const detail = tracked
+        ? `Forge-tracked — HP ${stats?.currentHP ?? "–"}/${stats?.maxHP ?? "–"} · AC ${stats?.ac ?? "–"}`
+        : "not Forge-tracked yet";
+      return `<div class="hidden-row"><span>${escapeHtml(item.name) || "(unnamed)"}</span><span class="hint">${detail}</span></div>`;
+    })
+    .join("");
+
+  debugList.innerHTML = `
+    <details class="hidden-tokens">
+      <summary>Scene items (${items.length}) — debug</summary>
+      ${rows || `<p class="hint">No items in this scene.</p>`}
+    </details>
+  `;
 }
 
 function escapeHtml(s: string): string {
