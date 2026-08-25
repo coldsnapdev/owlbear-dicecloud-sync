@@ -36,7 +36,7 @@ app.innerHTML = `
     <div id="mapping-list">Loading tokens…</div>
   </section>
 
-  <p class="hint" style="opacity:0.5;">build 5 — cached DiceCloud session + clearer save errors</p>
+  <p class="hint" style="opacity:0.5;">build 6 — token via query param, sidesteps DiceCloud's missing CORS preflight route</p>
 `;
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;
