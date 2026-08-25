@@ -1,6 +1,6 @@
 import OBR, { type Item } from "@owlbear-rodeo/sdk";
 import { diceCloudLogin, fetchCreatureStats, parseCreatureId } from "./dicecloud";
-import { FORGE_NAMESPACE, readForgeStats } from "./forge";
+import { isForgeUnit, readForgeStats } from "./forge";
 import {
   getMappings,
   getStoredCredentials,
@@ -35,6 +35,8 @@ app.innerHTML = `
     </p>
     <div id="mapping-list">Loading tokens…</div>
   </section>
+
+  <p class="hint" style="opacity:0.5;">build 4 — scene-ready guard + on-screen errors</p>
 `;
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;
@@ -72,16 +74,63 @@ document.getElementById("save-creds")!.addEventListener("click", async () => {
   }
 });
 
+let itemChangeListenerAttached = false;
+
 async function renderMappings() {
-  const [items, mappings] = await Promise.all([
-    OBR.scene.items.getItems(),
-    getMappings(),
-  ]);
+  // Scene APIs throw if called before a scene is actually open/ready (e.g.
+  // the room has no scene loaded yet, or is mid-transition). That throw was
+  // previously uncaught, which left the popover stuck on the static
+  // "Loading tokens…" text forever with nothing logged, because our
+  // diagnostics only ran *after* this point. Guard + try/catch fix both.
+  const ready = await OBR.scene.isReady();
+  if (!ready) {
+    mappingList.innerHTML = `<p class="hint">Waiting for a scene to be open…</p>`;
+    return;
+  }
+
+  if (!itemChangeListenerAttached) {
+    itemChangeListenerAttached = true;
+    OBR.scene.items.onChange(() => {
+      renderMappings();
+    });
+  }
+
+  let items: Item[];
+  let mappings: Mapping[];
+  try {
+    [items, mappings] = await Promise.all([
+      OBR.scene.items.getItems(),
+      getMappings(),
+    ]);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[dicecloud-sync] failed to load scene items/mappings:", err);
+    mappingList.innerHTML = `<p class="hint" style="color:#c0392b;">Couldn't load scene data: ${escapeHtml(message)}</p>`;
+    return;
+  }
+
+  // Diagnostic logging: filter the browser console to "dicecloud-sync" to
+  // see exactly what Owlbear returned, whether or not the Forge-unit
+  // filter below matches anything.
+  console.log(`[dicecloud-sync] scene has ${items.length} item(s) total`);
+  for (const item of items) {
+    console.log(
+      `[dicecloud-sync] item "${item.name}" (${item.id}) metadata keys:`,
+      Object.keys(item.metadata)
+    );
+  }
 
   const forgeItems = items.filter((item: Item) => isForgeUnit(item.metadata));
+  console.log(`[dicecloud-sync] ${forgeItems.length} item(s) matched isForgeUnit()`);
 
   if (forgeItems.length === 0) {
-    mappingList.innerHTML = `<p class="hint">No Forge units found in this scene yet.</p>`;
+    const itemSummary = items
+      .map((i) => `${escapeHtml(i.name)} [${Object.keys(i.metadata).join(", ") || "no metadata"}]`)
+      .join("<br/>");
+    mappingList.innerHTML = `
+      <p class="hint">No Forge units found in this scene yet.</p>
+      <p class="hint" style="opacity:0.7;">Saw ${items.length} scene item(s):<br/>${itemSummary || "(none)"}</p>
+    `;
     return;
   }
 
@@ -154,7 +203,10 @@ function escapeHtml(s: string): string {
 OBR.onReady(async () => {
   await initCredentialsForm();
   await renderMappings();
-  OBR.scene.items.onChange(() => {
+  // Covers both "no scene yet, one opens later" and "scene changes" — the
+  // onChange listener itself only gets attached (once) inside
+  // renderMappings, after we know a scene actually exists.
+  OBR.scene.onReadyChange(() => {
     renderMappings();
   });
 });
