@@ -47,9 +47,34 @@ no server required.
 ### 3. Host it somewhere static
 
 Any static host works: Cloudflare Pages, GitHub Pages, Vercel, Netlify. The
-important thing is that Owlbear Rodeo can reach `manifest.json` over HTTPS.
-For example, with Cloudflare Pages: create a project, point it at this
-repo/folder, set the build output directory to `dist`, deploy.
+important thing is that Owlbear Rodeo can reach `manifest.json` over HTTPS
+— and that what it fetches is the **built** output (`dist/`), not the raw
+source. `dist/` is git-ignored, so pushing this repo as-is to GitHub does
+not, by itself, publish anything servable.
+
+**Using GitHub Pages:** a workflow is already included at
+`.github/workflows/deploy.yml` — it builds the project and deploys `dist/`
+automatically on every push to `main`. To turn it on:
+
+1. Push this repo to GitHub.
+2. In the repo, go to **Settings → Pages**, and set **Source** to **"GitHub
+   Actions"** (not "Deploy from a branch" — that only serves whatever's
+   literally committed, and `dist/` isn't committed).
+3. Push to `main` (or run the workflow manually from the **Actions** tab).
+   Check the **Actions** tab for it to go green — first run takes a minute
+   or two.
+4. The extension's manifest will then be at
+   `https://<your-username>.github.io/<repo-name>/manifest.json` — that
+   full URL, including `manifest.json`, is what goes into Owlbear Rodeo's
+   "add custom extension" field.
+5. If the repo is private: GitHub Pages needs either a public repo, or
+   GitHub Pro/Team/Enterprise for a private one, on the free plan a private
+   repo's Pages site won't serve at all.
+
+**Using Cloudflare Pages/Vercel/Netlify instead** is often less fuss, since
+they build from the repo automatically without a workflow file: create a
+project, point it at this repo, set the build command to `npm run build`
+and the output directory to `dist`, deploy.
 
 ### 4. Add it to your Owlbear Rodeo room
 
