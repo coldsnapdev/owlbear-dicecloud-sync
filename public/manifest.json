@@ -4,12 +4,12 @@
   "manifest_version": 1,
   "description": "Pulls current HP, max HP, and AC from each party member's DiceCloud sheet into their Forge! unit.",
   "author": "Simon",
-  "icon": "icon.svg",
-  "background_url": "background.html",
+  "icon": "https://coldsnapdev.github.io/owlbear-dicecloud-sync/icon.svg",
+  "background_url": "https://coldsnapdev.github.io/owlbear-dicecloud-sync/background.html",
   "action": {
     "title": "DiceCloud Sync",
-    "icon": "icon.svg",
-    "popover": "index.html",
+    "icon": "https://coldsnapdev.github.io/owlbear-dicecloud-sync/icon.svg",
+    "popover": "https://coldsnapdev.github.io/owlbear-dicecloud-sync/index.html",
     "width": 380,
     "height": 560
   }
