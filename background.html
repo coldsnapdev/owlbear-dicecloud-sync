@@ -1,0 +1,16 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>DiceCloud Sync (background)</title>
+  </head>
+  <body>
+    <!--
+      This page is never shown to the player — Owlbear loads it invisibly
+      per the manifest's "background_url" so the sync loop in
+      src/background.ts keeps running regardless of whether the extension's
+      popover is open.
+    -->
+    <script type="module" src="/src/background.ts"></script>
+  </body>
+</html>

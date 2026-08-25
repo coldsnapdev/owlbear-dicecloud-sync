@@ -1,0 +1,19 @@
+{
+  "name": "obr-dicecloud-sync",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Syncs current HP, max HP, and AC from DiceCloud v2 character sheets into Forge! unit tokens on Owlbear Rodeo.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@owlbear-rodeo/sdk": "^2.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "Abelon DiceCloud Sync",
+  "version": "0.1.0",
+  "manifest_version": 1,
+  "description": "Pulls current HP, max HP, and AC from each party member's DiceCloud sheet into their Forge! unit.",
+  "author": "Simon",
+  "icon": "icon.svg",
+  "background_url": "background.html",
+  "action": {
+    "title": "DiceCloud Sync",
+    "icon": "icon.svg",
+    "popover": "index.html",
+    "width": 380,
+    "height": 560
+  }
+}
