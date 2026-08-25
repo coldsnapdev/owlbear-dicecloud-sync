@@ -1,7 +1,7 @@
 import OBR from "@owlbear-rodeo/sdk";
 import { diceCloudLogin, fetchCreatureStats, type DiceCloudSession } from "./dicecloud";
 import { writeForgeStats } from "./forge";
-import { getMappings, getStoredCredentials, type Mapping } from "./config";
+import { getStoredCredentials, reconcileMappings, type Mapping } from "./config";
 
 // How often to re-check DiceCloud. A few seconds is plenty for HP/AC
 // tracking and stays well clear of anything that could look like abuse of
@@ -38,7 +38,17 @@ async function ensureSession(): Promise<DiceCloudSession | undefined> {
 }
 
 async function syncOnce() {
-  const mappings: Mapping[] = await getMappings();
+  let mappings: Mapping[];
+  try {
+    // Auto-attach any token in this scene whose name matches a character we
+    // already know from another scene, before syncing — this is what makes
+    // the party's tokens "just work" after a scene change.
+    const items = await OBR.scene.items.getItems();
+    mappings = await reconcileMappings(items);
+  } catch (err) {
+    log("Couldn't reconcile mappings this cycle (scene not ready?):", err);
+    return;
+  }
   if (mappings.length === 0) return;
 
   const activeSession = await ensureSession();
