@@ -1,5 +1,5 @@
 import OBR, { type Item } from "@owlbear-rodeo/sdk";
-import { diceCloudLogin, fetchCreatureStats, parseCreatureId } from "./dicecloud";
+import { diceCloudLogin, fetchCreatureStats, parseCreatureId, type DiceCloudSession } from "./dicecloud";
 import { isForgeUnit, readForgeStats } from "./forge";
 import {
   getMappings,
@@ -36,7 +36,7 @@ app.innerHTML = `
     <div id="mapping-list">Loading tokens…</div>
   </section>
 
-  <p class="hint" style="opacity:0.5;">build 4 — scene-ready guard + on-screen errors</p>
+  <p class="hint" style="opacity:0.5;">build 5 — cached DiceCloud session + clearer save errors</p>
 `;
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;
@@ -64,15 +64,36 @@ document.getElementById("save-creds")!.addEventListener("click", async () => {
   credsStatus.textContent = "Testing…";
   credsStatus.className = "status";
   try {
-    await diceCloudLogin(usernameOrEmail, password);
+    cachedSession = await diceCloudLogin(usernameOrEmail, password);
     setStoredCredentials({ usernameOrEmail, password });
     credsStatus.textContent = "✓ Logged in and saved.";
     credsStatus.className = "status ok";
   } catch (err) {
-    credsStatus.textContent = err instanceof Error ? err.message : "Login failed.";
+    console.error("[dicecloud-sync] credentials test failed:", err);
+    credsStatus.textContent = err instanceof Error
+      ? `Login request failed: ${err.message}`
+      : "Login failed.";
     credsStatus.className = "status error";
   }
 });
+
+// Cache the DiceCloud session instead of re-hitting POST /api/login on every
+// Save click / row render — besides being wasteful, doing that repeatedly in
+// quick succession is a plausible way to trip a rate-limit or bot-protection
+// layer in front of dicecloud.com, which would surface to us as a bare
+// "Failed to fetch" (no CORS headers on a challenge/block response) rather
+// than a real DiceCloud error message.
+let cachedSession: DiceCloudSession | undefined;
+
+async function getSession(): Promise<DiceCloudSession | undefined> {
+  const creds = getStoredCredentials();
+  if (!creds) return undefined;
+  if (cachedSession && new Date(cachedSession.tokenExpires).getTime() > Date.now() + 60_000) {
+    return cachedSession;
+  }
+  cachedSession = await diceCloudLogin(creds.usernameOrEmail, creds.password);
+  return cachedSession;
+}
 
 let itemChangeListenerAttached = false;
 
@@ -175,17 +196,29 @@ async function renderMappings() {
 
       status.textContent = "Checking…";
       status.className = "status";
+
+      let session: DiceCloudSession | undefined;
       try {
-        const creds = getStoredCredentials();
-        const session = creds
-          ? await diceCloudLogin(creds.usernameOrEmail, creds.password)
-          : undefined;
+        session = await getSession();
+      } catch (err) {
+        console.error("[dicecloud-sync] login (from mapping save) failed:", err);
+        status.textContent = err instanceof Error
+          ? `Login request failed: ${err.message}`
+          : "Login request failed.";
+        status.className = "status error";
+        return;
+      }
+
+      try {
         const stats = await fetchCreatureStats(creatureId, session?.token);
         await upsertMapping({ itemId: item.id, itemName: item.name, creatureId });
         status.textContent = `✓ Found ${stats.name ?? "character"} — HP ${stats.currentHP}/${stats.maxHP}, AC ${stats.ac}`;
         status.className = "status ok";
       } catch (err) {
-        status.textContent = err instanceof Error ? err.message : "Couldn't reach that sheet.";
+        console.error("[dicecloud-sync] fetch creature stats failed:", err);
+        status.textContent = err instanceof Error
+          ? `Sheet request failed: ${err.message}`
+          : "Couldn't reach that sheet.";
         status.className = "status error";
       }
     });
