@@ -57,6 +57,11 @@
         cursor: pointer;
       }
       button:hover { opacity: 0.9; }
+      button.secondary {
+        background: transparent;
+        color: var(--ink-soft);
+        border-color: var(--line);
+      }
       .row { display: flex; align-items: center; gap: 8px; }
       .status { font-size: 12px; color: var(--ink-soft); }
       .status.ok { color: var(--ok); }
@@ -72,6 +77,18 @@
         align-items: baseline;
         margin-bottom: 4px;
         gap: 8px;
+      }
+      .hidden-tokens {
+        margin-top: 12px;
+        font-size: 12px;
+        color: var(--ink-soft);
+      }
+      .hidden-tokens summary { cursor: pointer; }
+      .hidden-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 4px 0 4px 4px;
       }
     </style>
   </head>

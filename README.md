@@ -107,6 +107,17 @@ testing, but hasn't been confirmed here; if it's rejected, a tunnel (e.g.
 `ngrok`) or just deploying to a real static host and iterating from there is
 the fallback.
 
+## A note on `public/manifest.json`
+
+The icon/background/popover paths in the manifest are **full, absolute
+URLs** (`https://coldsnapdev.github.io/owlbear-dicecloud-sync/...`), not
+relative ones. This isn't a style choice — Owlbear Rodeo doesn't resolve a
+relative manifest path the way a browser normally would; it appears to just
+concatenate its origin onto whatever string is there, which breaks for any
+site (like a GitHub Pages project site) that isn't hosted at a bare domain
+root. If this ever moves to a different URL, these four fields need to be
+updated to match, by hand.
+
 ## Known caveats
 
 - **The Forge metadata keys are specific to this campaign.** `src/forge.ts`
