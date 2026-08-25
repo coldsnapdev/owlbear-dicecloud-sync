@@ -78,9 +78,7 @@ async function renderMappings() {
     getMappings(),
   ]);
 
-  const forgeItems = items.filter((item: Item) =>
-    Boolean(item.metadata[FORGE_NAMESPACE])
-  );
+  const forgeItems = items.filter((item: Item) => isForgeUnit(item.metadata));
 
   if (forgeItems.length === 0) {
     mappingList.innerHTML = `<p class="hint">No Forge units found in this scene yet.</p>`;
