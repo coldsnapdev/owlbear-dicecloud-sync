@@ -184,10 +184,29 @@ export async function removeMapping(itemId: string, itemName?: string): Promise<
 export async function reconcileMappings(items: Item[]): Promise<Mapping[]> {
   const [mappings, links] = await Promise.all([getMappings(), getCharacterLinks()]);
   const mappingByItem = new Map(mappings.map((m) => [m.itemId, m]));
+  const itemById = new Map(items.map((i) => [i.id, i]));
   let changed = false;
 
+  // Drop any mapping whose token has since been renamed away from the name
+  // it was linked under. Matching is entirely name-based, so once a token
+  // no longer has the name that earned it a link, that link no longer says
+  // anything about it — keeping the old mapping would mean silently
+  // syncing DiceCloud stats onto what is now (as far as we can tell) a
+  // different token. The loop right below immediately re-checks the item's
+  // *current* name against the links list, so if the new name happens to
+  // match some other link it reattaches right away; otherwise it just
+  // falls back into the "needs linking" pool, same as any other unmapped
+  // Forge unit.
+  for (const [itemId, mapping] of mappingByItem) {
+    const item = itemById.get(itemId);
+    if (item && normalizeName(item.name) !== normalizeName(mapping.itemName)) {
+      mappingByItem.delete(itemId);
+      changed = true;
+    }
+  }
+
   for (const item of items) {
-    if (mappingByItem.has(item.id)) continue; // already mapped this scene
+    if (mappingByItem.has(item.id)) continue; // already mapped, name still matches
 
     const link = findCharacterLink(links, item.name);
     if (link?.creatureId && !link.ignored) {
