@@ -44,7 +44,7 @@ app.innerHTML = `
     <div id="debug-list"></div>
   </section>
 
-  <p class="hint" style="opacity:0.5;">build 10 — always-on scene item debug list</p>
+  <p class="hint" style="opacity:0.5;">build 11 - catching renamed tokens</p>
 `;
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;
