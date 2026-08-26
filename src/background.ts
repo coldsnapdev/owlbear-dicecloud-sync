@@ -9,8 +9,13 @@ import { getStoredCredentials, reconcileMappings, type Mapping } from "./config"
 const POLL_INTERVAL_MS = 8000;
 
 let session: DiceCloudSession | undefined;
-// creatureId -> last-seen values, so we only write to Owlbear (and only
-// generate a websocket frame) when something actually changed.
+// itemId (NOT creatureId) -> last-seen values, so we only write to Owlbear
+// when something actually changed. This must be keyed by the token, not the
+// DiceCloud character: a character's stats can be "unchanged since last
+// poll" while a *different, freshly-appeared token* for that same character
+// (a new scene, auto-attached by name) has never had Forge metadata written
+// to it at all — keying by creatureId caused exactly that case to be
+// silently skipped forever, since the fingerprint looked identical.
 const lastSeen = new Map<string, string>();
 
 function log(...args: unknown[]) {
@@ -58,12 +63,12 @@ async function syncOnce() {
       const stats = await fetchCreatureStats(mapping.creatureId, activeSession?.token);
       const fingerprint = `${stats.currentHP}|${stats.maxHP}|${stats.ac}`;
 
-      if (lastSeen.get(mapping.creatureId) === fingerprint) {
-        continue; // nothing changed since last poll
+      if (lastSeen.get(mapping.itemId) === fingerprint) {
+        continue; // nothing changed since last poll for this specific token
       }
 
       await writeForgeStats(mapping.itemId, stats);
-      lastSeen.set(mapping.creatureId, fingerprint);
+      lastSeen.set(mapping.itemId, fingerprint);
       log(
         `Updated ${mapping.itemName}: HP ${stats.currentHP}/${stats.maxHP}, AC ${stats.ac}`
       );
