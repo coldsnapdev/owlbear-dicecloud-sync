@@ -1,5 +1,4 @@
 import OBR, { type Item } from "@owlbear-rodeo/sdk";
-import { isForgeUnit } from "./forge";
 
 // --- Credentials -----------------------------------------------------------
 // The DiceCloud "reader" account's credentials are kept in this browser's
@@ -163,19 +162,31 @@ export async function removeMapping(itemId: string, itemName?: string): Promise<
 }
 
 // --- Reconciliation ----------------------------------------------------------
-// Matches this scene's Forge units against the room-wide character-links
-// list by name, and auto-creates a scene mapping for any match that isn't
-// already mapped. Call this before reading mappings anywhere (popover
-// render, background sync loop) so a token that matches a name we already
-// know picks up its DiceCloud link the moment it appears, with no manual
+// Matches this scene's items against the room-wide character-links list by
+// name, and auto-creates a scene mapping for any match that isn't already
+// mapped. Call this before reading mappings anywhere (popover render,
+// background sync loop) so a token that matches a name we already know
+// picks up its DiceCloud link the moment it appears, with no manual
 // re-mapping needed after a scene change.
+//
+// Deliberately NOT gated on isForgeUnit here: Forge only writes its own
+// tracking metadata onto a token once ITS UI has been told about it, which
+// left a real gap — the same party token could work fine in one scene and
+// be invisible to us in the next, purely because Forge hadn't "seen" it
+// there yet. A name match against this list is already an explicit,
+// GM-curated link (something you typed a DiceCloud URL in for), so it's a
+// strong enough signal on its own — the background sync loop's
+// writeForgeStats will create Forge's three metadata keys on the token the
+// moment it syncs, forcing Forge-tracking into existence rather than
+// waiting for Forge's own UI to do it. (The isForgeUnit filter is still
+// used elsewhere, for the "which unmapped tokens should I offer to map"
+// list in the popover — that's a different, narrower question.)
 export async function reconcileMappings(items: Item[]): Promise<Mapping[]> {
   const [mappings, links] = await Promise.all([getMappings(), getCharacterLinks()]);
   const mappingByItem = new Map(mappings.map((m) => [m.itemId, m]));
   let changed = false;
 
   for (const item of items) {
-    if (!isForgeUnit(item.metadata)) continue;
     if (mappingByItem.has(item.id)) continue; // already mapped this scene
 
     const link = findCharacterLink(links, item.name);
