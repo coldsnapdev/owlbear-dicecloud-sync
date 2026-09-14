@@ -19,6 +19,8 @@ export interface CreatureStats {
   currentHP?: number;
   maxHP?: number;
   ac?: number;
+  /** Current temporary HP, if any (0 when none is up). Undefined only if the sheet has no tempHP attribute at all. */
+  tempHP?: number;
 }
 
 /**
@@ -55,28 +57,17 @@ export async function diceCloudLogin(
 }
 
 /**
- * Fetches a creature's computed sheet and pulls out current HP, max HP,
- * and AC.
- *
- * HP comes from the non-removed attribute with attributeType "healthBar"
- * AND variableName "hitPoints" (`.value` = current, `.total` = max) — a
- * sheet can have more than one healthBar attribute (Temporary Hit Points
- * is its own healthBar with variableName "tempHP", and e.g. a Ranger's
- * animal companion can add a custom one like "Companion HP"), and those
- * can appear earlier in the response's creatureProperties array than the
- * character's real HP bar. Matching by variableName targets the actual
- * main HP bar regardless of array order or how many other healthBar
- * attributes the sheet has. AC comes from the attribute named "armor",
- * which is a fixed convention baked into DiceCloud's own attack-resolution
- * engine, not a per-sheet choice.
+ * Fetches a creature's raw computed sheet (creature record + the full
+ * creatureProperties array). Shared by fetchCreatureStats and
+ * fetchCompanionStats so both pay for exactly one request/parse.
  *
  * Pass `token` for a sheet that isn't flagged public (the normal case —
  * see README). Omit it only for a sheet explicitly marked Public.
  */
-export async function fetchCreatureStats(
+async function fetchCreatureSheet(
   creatureId: string,
   token?: string
-): Promise<CreatureStats> {
+): Promise<{ creature: any; props: any[] }> {
   // Deliberately NOT sent as an `Authorization: Bearer <token>` header.
   // DiceCloud's REST framework (simple:rest) only attaches CORS headers to
   // a request when there's an explicit route registered for that exact
@@ -107,25 +98,84 @@ export async function fetchCreatureStats(
   // DiceCloud's live response isn't always wrapped in a `data` envelope the
   // way the develop-branch source implies — tolerate both shapes.
   const data = body.data ?? body;
-  const creature = data?.creatures?.[0];
-  const props: any[] = data?.creatureProperties ?? [];
+  return {
+    creature: data?.creatures?.[0],
+    props: data?.creatureProperties ?? [],
+  };
+}
 
-  const hpBar = props.find(
-    (p) =>
-      p?.type === "attribute" &&
-      p?.attributeType === "healthBar" &&
-      p?.variableName === "hitPoints" &&
-      !p?.removed
+function findAttribute(props: any[], variableName: string): any | undefined {
+  return props.find(
+    (p) => p?.type === "attribute" && p?.variableName === variableName && !p?.removed
   );
-  const acStat = props.find(
-    (p) => p?.type === "attribute" && p?.variableName === "armor" && !p?.removed
-  );
+}
+
+/**
+ * Fetches a creature's computed sheet and pulls out current HP, max HP, AC,
+ * and current temporary HP — the character's own stats, not a companion's
+ * (see fetchCompanionStats for that).
+ *
+ * HP comes from the non-removed attribute with attributeType "healthBar"
+ * AND variableName "hitPoints" (`.value` = current, `.total` = max) — a
+ * sheet can have more than one healthBar attribute (Temporary Hit Points is
+ * its own healthBar with variableName "tempHP", and e.g. a Ranger's animal
+ * companion can add a custom one like "Companion HP"), and those can appear
+ * earlier in the response's creatureProperties array than the character's
+ * real HP bar. Matching by variableName targets the actual main HP bar
+ * regardless of array order or how many other healthBar attributes the
+ * sheet has. AC comes from the attribute named "armor", which is a fixed
+ * convention baked into DiceCloud's own attack-resolution engine, not a
+ * per-sheet choice. Temp HP comes from the "tempHP" healthBar's `.value` —
+ * DiceCloud doesn't give temp HP a meaningful "max", so `.total` is ignored.
+ */
+export async function fetchCreatureStats(
+  creatureId: string,
+  token?: string
+): Promise<CreatureStats> {
+  const { creature, props } = await fetchCreatureSheet(creatureId, token);
+
+  const hpBar = findAttribute(props, "hitPoints");
+  const acStat = findAttribute(props, "armor");
+  const tempHPBar = findAttribute(props, "tempHP");
 
   return {
     name: creature?.name,
     currentHP: numberOrUndefined(hpBar?.value),
     maxHP: numberOrUndefined(hpBar?.total),
     ac: numberOrUndefined(acStat?.value),
+    tempHP: numberOrUndefined(tempHPBar?.value),
+  };
+}
+
+/**
+ * Fetches the stats for a character's summoned companion (currently: a
+ * Ranger's Primal Companion) rather than the character themself.
+ *
+ * HP comes from the "companionHP" healthBar attribute, same shape as the
+ * character's own HP. AC is NOT a stored attribute on the sheet — DiceCloud
+ * only has it as stat-block description text ("AC 13 + wisdom.modifier"),
+ * not a real value — so it's computed here from the Beast of the Land
+ * formula (13 + the character's own Wisdom modifier). This is specific to
+ * that one companion stat block; a different companion type (Beast of the
+ * Sea/Sky, a different class's companion/familiar, etc.) would need its own
+ * formula added here if/when it comes up — there's no generic way to read
+ * companion AC straight off the sheet.
+ */
+export async function fetchCompanionStats(
+  creatureId: string,
+  token?: string
+): Promise<CreatureStats> {
+  const { props } = await fetchCreatureSheet(creatureId, token);
+
+  const hpBar = findAttribute(props, "companionHP");
+  const wisdom = findAttribute(props, "wisdom");
+  const wisdomModifier = numberOrUndefined(wisdom?.modifier);
+
+  return {
+    name: hpBar?.name, // e.g. "Companion HP" — better than nothing for logging
+    currentHP: numberOrUndefined(hpBar?.value),
+    maxHP: numberOrUndefined(hpBar?.total),
+    ac: wisdomModifier !== undefined ? 13 + wisdomModifier : undefined,
   };
 }
 
