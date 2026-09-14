@@ -44,7 +44,7 @@ app.innerHTML = `
     <div id="debug-list"></div>
   </section>
 
-  <p class="hint" style="opacity:0.5;">build 11 - catching renamed tokens</p>
+  <p class="hint" style="opacity:0.5;">build 12 — HP bar matched by variableName</p>
 `;
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;
