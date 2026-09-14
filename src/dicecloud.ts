@@ -58,12 +58,17 @@ export async function diceCloudLogin(
  * Fetches a creature's computed sheet and pulls out current HP, max HP,
  * and AC.
  *
- * HP comes from the first non-removed attribute with attributeType
- * "healthBar" (`.value` = current, `.total` = max) — the same property
- * DiceCloud's own tabletop/dashboard view uses to render party HP bars.
- * AC comes from the attribute named "armor", which is a fixed convention
- * baked into DiceCloud's own attack-resolution engine, not a per-sheet
- * choice.
+ * HP comes from the non-removed attribute with attributeType "healthBar"
+ * AND variableName "hitPoints" (`.value` = current, `.total` = max) — a
+ * sheet can have more than one healthBar attribute (Temporary Hit Points
+ * is its own healthBar with variableName "tempHP", and e.g. a Ranger's
+ * animal companion can add a custom one like "Companion HP"), and those
+ * can appear earlier in the response's creatureProperties array than the
+ * character's real HP bar. Matching by variableName targets the actual
+ * main HP bar regardless of array order or how many other healthBar
+ * attributes the sheet has. AC comes from the attribute named "armor",
+ * which is a fixed convention baked into DiceCloud's own attack-resolution
+ * engine, not a per-sheet choice.
  *
  * Pass `token` for a sheet that isn't flagged public (the normal case —
  * see README). Omit it only for a sheet explicitly marked Public.
@@ -99,24 +104,18 @@ export async function fetchCreatureStats(
   }
 
   const body = await res.json();
-
-  // Temporary diagnostic: the previous round showed `data.creatures[0]`
-  // coming back undefined for every character tried, which means the
-  // *shape* we're assuming (body.data.creatures[...]) is wrong somewhere,
-  // not any one sheet's contents. Log the actual top-level shape of what
-  // came back instead of guessing at another field path. Filter the
-  // console to "dicecloud-raw" to find this.
-  console.log(`[dicecloud-raw] creature ${creatureId}: top-level keys of response body:`, Object.keys(body ?? {}));
-  console.log(`[dicecloud-raw] creature ${creatureId}: full response body:`, JSON.stringify(body).slice(0, 2000));
-
+  // DiceCloud's live response isn't always wrapped in a `data` envelope the
+  // way the develop-branch source implies — tolerate both shapes.
   const data = body.data ?? body;
   const creature = data?.creatures?.[0];
   const props: any[] = data?.creatureProperties ?? [];
 
-  console.log(`[dicecloud-raw] creature ${creatureId}: keys of "data":`, Object.keys(data ?? {}));
-
   const hpBar = props.find(
-    (p) => p?.type === "attribute" && p?.attributeType === "healthBar" && !p?.removed
+    (p) =>
+      p?.type === "attribute" &&
+      p?.attributeType === "healthBar" &&
+      p?.variableName === "hitPoints" &&
+      !p?.removed
   );
   const acStat = props.find(
     (p) => p?.type === "attribute" && p?.variableName === "armor" && !p?.removed
