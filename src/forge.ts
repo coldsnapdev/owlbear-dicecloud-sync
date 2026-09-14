@@ -21,6 +21,12 @@ export const FORGE_KEYS = {
   currentHP: "com.battle-system.forge/Z005",
   maxHP: "com.battle-system.forge/Z006",
   ac: "com.battle-system.forge/Z007",
+  // Captured 2026-09-14 by watching the room socket's Messages while typing
+  // a Temp HP value into Arjay's token by hand in Forge — the resulting
+  // patch was `/metadata/com.battle-system.forge~1Z042` -> "15", which
+  // unescapes (the ~1 escapes a "/" within the one property name, not a
+  // path separator — same gotcha as the other three keys) to this flat key.
+  tempHP: "com.battle-system.forge/Z042",
 } as const;
 
 /**
@@ -43,6 +49,9 @@ export async function writeForgeStats(
       if (stats.ac !== undefined) {
         item.metadata[FORGE_KEYS.ac] = String(Math.round(stats.ac));
       }
+      if (stats.tempHP !== undefined) {
+        item.metadata[FORGE_KEYS.tempHP] = String(Math.round(stats.tempHP));
+      }
     }
   });
 }
@@ -52,11 +61,13 @@ export function readForgeStats(metadata: Record<string, unknown>): {
   currentHP?: string;
   maxHP?: string;
   ac?: string;
+  tempHP?: string;
 } {
   return {
     currentHP: metadata[FORGE_KEYS.currentHP] as string | undefined,
     maxHP: metadata[FORGE_KEYS.maxHP] as string | undefined,
     ac: metadata[FORGE_KEYS.ac] as string | undefined,
+    tempHP: metadata[FORGE_KEYS.tempHP] as string | undefined,
   };
 }
 
