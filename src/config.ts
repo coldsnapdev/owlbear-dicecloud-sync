@@ -54,6 +54,14 @@ export interface CharacterLink {
   creatureId?: string;
   /** True if tokens with this name should be hidden from the list entirely (e.g. NPCs). */
   ignored?: boolean;
+  /**
+   * True if this token represents the linked character's summoned
+   * companion (e.g. a Ranger's Primal Companion), not the character
+   * themself — syncs from the sheet's companion-prefixed attributes
+   * (companionHP, etc., see dicecloud.ts's fetchCompanionStats) instead of
+   * the character's own hitPoints/armor.
+   */
+  companion?: boolean;
 }
 
 export async function getCharacterLinks(): Promise<CharacterLink[]> {
@@ -121,6 +129,8 @@ export interface Mapping {
   itemName: string;
   /** DiceCloud creature id. */
   creatureId: string;
+  /** See CharacterLink.companion — carried through so the sync loop knows which stats to pull. */
+  companion?: boolean;
 }
 
 export async function getMappings(): Promise<Mapping[]> {
@@ -140,7 +150,11 @@ export async function upsertMapping(mapping: Mapping): Promise<void> {
   await setMappings(next);
   // Remember this name -> creatureId link at the room level too, so any
   // token with the same name auto-attaches in a future scene.
-  await upsertCharacterLink({ itemName: mapping.itemName, creatureId: mapping.creatureId });
+  await upsertCharacterLink({
+    itemName: mapping.itemName,
+    creatureId: mapping.creatureId,
+    companion: mapping.companion,
+  });
 }
 
 export async function removeMapping(itemId: string, itemName?: string): Promise<void> {
@@ -214,6 +228,7 @@ export async function reconcileMappings(items: Item[]): Promise<Mapping[]> {
         itemId: item.id,
         itemName: item.name,
         creatureId: link.creatureId,
+        companion: link.companion,
       });
       changed = true;
     }
