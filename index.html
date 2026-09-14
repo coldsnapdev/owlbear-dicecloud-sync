@@ -63,6 +63,13 @@
         border-color: var(--line);
       }
       .row { display: flex; align-items: center; gap: 8px; }
+      .companion-toggle {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+      }
+      .companion-toggle input[type="checkbox"] { margin: 0; flex-shrink: 0; }
       .status { font-size: 12px; color: var(--ink-soft); }
       .status.ok { color: var(--ok); }
       .status.error { color: var(--error); }
