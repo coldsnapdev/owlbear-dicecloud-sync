@@ -1,5 +1,11 @@
 import OBR, { type Item } from "@owlbear-rodeo/sdk";
-import { diceCloudLogin, fetchCreatureStats, parseCreatureId, type DiceCloudSession } from "./dicecloud";
+import {
+  diceCloudLogin,
+  fetchCreatureStats,
+  fetchCompanionStats,
+  parseCreatureId,
+  type DiceCloudSession,
+} from "./dicecloud";
 import { isForgeUnit, readForgeStats } from "./forge";
 import {
   getCharacterLinks,
@@ -44,7 +50,7 @@ app.innerHTML = `
     <div id="debug-list"></div>
   </section>
 
-  <p class="hint" style="opacity:0.5;">build 12 — HP bar matched by variableName</p>
+  <p class="hint" style="opacity:0.5;">build 14 — temp HP now syncs to Forge</p>
 `;
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;
@@ -168,7 +174,9 @@ async function renderMappings() {
     row.innerHTML = `
       <div class="mapping-header">
         <strong>${escapeHtml(item.name)}</strong>
-        <span class="hint">HP ${forgeStats.currentHP ?? "–"}/${forgeStats.maxHP ?? "–"} · AC ${forgeStats.ac ?? "–"}</span>
+        <span class="hint">HP ${forgeStats.currentHP ?? "–"}/${forgeStats.maxHP ?? "–"}${
+      forgeStats.tempHP && forgeStats.tempHP !== "0" ? ` (+${forgeStats.tempHP} temp)` : ""
+    } · AC ${forgeStats.ac ?? "–"}</span>
       </div>
       <input
         type="text"
@@ -176,6 +184,10 @@ async function renderMappings() {
         placeholder="https://dicecloud.com/character/…"
         value="${escapeHtml(existing?.creatureId ?? "")}"
       />
+      <label class="companion-toggle hint">
+        <input type="checkbox" class="companion-checkbox" ${existing?.companion ? "checked" : ""} />
+        This is a companion (syncs Companion HP/AC from that sheet, not the character's own)
+      </label>
       <div class="row">
         <button class="save-mapping">Save</button>
         <button class="ignore-item secondary" type="button">Not connecting this</button>
@@ -184,6 +196,7 @@ async function renderMappings() {
     `;
 
     const input = row.querySelector(".creature-url") as HTMLInputElement;
+    const companionCheckbox = row.querySelector(".companion-checkbox") as HTMLInputElement;
     const saveButton = row.querySelector(".save-mapping") as HTMLButtonElement;
     const ignoreButton = row.querySelector(".ignore-item") as HTMLButtonElement;
     const status = row.querySelector(".status") as HTMLSpanElement;
@@ -212,10 +225,14 @@ async function renderMappings() {
         return;
       }
 
+      const companion = companionCheckbox.checked;
       try {
-        const stats = await fetchCreatureStats(creatureId, session?.token);
-        await upsertMapping({ itemId: item.id, itemName: item.name, creatureId });
-        status.textContent = `✓ Found ${stats.name ?? "character"} — HP ${stats.currentHP}/${stats.maxHP}, AC ${stats.ac}`;
+        const stats = companion
+          ? await fetchCompanionStats(creatureId, session?.token)
+          : await fetchCreatureStats(creatureId, session?.token);
+        await upsertMapping({ itemId: item.id, itemName: item.name, creatureId, companion });
+        const tempHPNote = stats.tempHP ? `, temp HP ${stats.tempHP}` : "";
+        status.textContent = `✓ Found ${stats.name ?? (companion ? "companion" : "character")} — HP ${stats.currentHP}/${stats.maxHP}, AC ${stats.ac}${tempHPNote}`;
         status.className = "status ok";
       } catch (err) {
         console.error("[dicecloud-sync] fetch creature stats failed:", err);
@@ -281,8 +298,9 @@ function renderDebugList(items: Item[], forgeItems: Item[]) {
     .map((item) => {
       const tracked = forgeIds.has(item.id);
       const stats = tracked ? readForgeStats(item.metadata) : undefined;
+      const tempNote = stats?.tempHP && stats.tempHP !== "0" ? ` (+${stats.tempHP} temp)` : "";
       const detail = tracked
-        ? `Forge-tracked — HP ${stats?.currentHP ?? "–"}/${stats?.maxHP ?? "–"} · AC ${stats?.ac ?? "–"}`
+        ? `Forge-tracked — HP ${stats?.currentHP ?? "–"}/${stats?.maxHP ?? "–"}${tempNote} · AC ${stats?.ac ?? "–"}`
         : "not Forge-tracked yet";
       return `<div class="hidden-row"><span>${escapeHtml(item.name) || "(unnamed)"}</span><span class="hint">${detail}</span></div>`;
     })
