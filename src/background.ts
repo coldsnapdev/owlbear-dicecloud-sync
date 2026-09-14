@@ -1,5 +1,5 @@
 import OBR from "@owlbear-rodeo/sdk";
-import { diceCloudLogin, fetchCreatureStats, type DiceCloudSession } from "./dicecloud";
+import { diceCloudLogin, fetchCreatureStats, fetchCompanionStats, type DiceCloudSession } from "./dicecloud";
 import { writeForgeStats } from "./forge";
 import { getStoredCredentials, reconcileMappings, type Mapping } from "./config";
 
@@ -60,8 +60,10 @@ async function syncOnce() {
 
   for (const mapping of mappings) {
     try {
-      const stats = await fetchCreatureStats(mapping.creatureId, activeSession?.token);
-      const fingerprint = `${stats.currentHP}|${stats.maxHP}|${stats.ac}`;
+      const stats = mapping.companion
+        ? await fetchCompanionStats(mapping.creatureId, activeSession?.token)
+        : await fetchCreatureStats(mapping.creatureId, activeSession?.token);
+      const fingerprint = `${stats.currentHP}|${stats.maxHP}|${stats.ac}|${stats.tempHP}`;
 
       if (lastSeen.get(mapping.itemId) === fingerprint) {
         continue; // nothing changed since last poll for this specific token
@@ -70,7 +72,8 @@ async function syncOnce() {
       await writeForgeStats(mapping.itemId, stats);
       lastSeen.set(mapping.itemId, fingerprint);
       log(
-        `Updated ${mapping.itemName}: HP ${stats.currentHP}/${stats.maxHP}, AC ${stats.ac}`
+        `Updated ${mapping.itemName}: HP ${stats.currentHP}/${stats.maxHP}, AC ${stats.ac}` +
+          (stats.tempHP ? `, temp HP ${stats.tempHP}` : "")
       );
     } catch (err) {
       // One character failing (deleted token, sheet temporarily
