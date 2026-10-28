@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-10-28T10:10:17.890Z",
+ "savedAt": "2026-10-28T10:10:21.961Z",
  "combatants": [
   {
    "itemId": "f1bdb335-d08e-4bfc-9a71-247a12609177",
@@ -26,16 +26,16 @@
    "ac": 15
   },
   {
+   "itemId": "4de430d6-8454-446f-84b4-f0b04b8a178b",
+   "name": "Tenok",
+   "initiative": 6,
+   "ac": 16
+  },
+  {
    "itemId": "8367561a-6dcc-4e83-a0ca-f90c3a66c604",
    "name": "Rot Skulker 4",
    "initiative": 5,
    "ac": 10
-  },
-  {
-   "itemId": "4de430d6-8454-446f-84b4-f0b04b8a178b",
-   "name": "Tenok",
-   "initiative": 0,
-   "ac": 16
   }
  ]
 }
