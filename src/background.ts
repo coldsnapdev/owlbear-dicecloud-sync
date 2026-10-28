@@ -2,7 +2,7 @@ import OBR from "@owlbear-rodeo/sdk";
 import { diceCloudLogin, fetchCreatureStats, fetchCompanionStats, type DiceCloudSession } from "./dicecloud";
 import { writeForgeStats, getCombatRoster } from "./forge";
 import { getStoredCredentials, reconcileMappings, type Mapping } from "./config";
-import { DM_PANEL_CHANNEL, type BridgeMessage } from "./dm-bridge";
+import { getGitHubToken, rosterFingerprint, saveRoster, toRosterEntries } from "./mailbox";
 
 // How often to re-check DiceCloud. A few seconds is plenty for HP/AC
 // tracking and stays well clear of anything that could look like abuse of
@@ -19,33 +19,39 @@ let session: DiceCloudSession | undefined;
 // silently skipped forever, since the fingerprint looked identical.
 const lastSeen = new Map<string, string>();
 
-// --- DM panel bridge --------------------------------------------------------
-// The standalone DM panel (dm-panel.html) is NOT an Owlbear extension page —
-// it's an ordinary browser tab the DM opens directly, so it has no OBR SDK
-// access at all. This background script is the only thing that does, so it's
-// responsible for pushing the live combat roster out over a BroadcastChannel
-// any time scene items change. See dm-bridge.ts for why this works and its
-// one real limitation (same browser/profile/machine only).
-const dmChannel = new BroadcastChannel(DM_PANEL_CHANNEL);
+// --- Combat mailbox -----------------------------------------------------------
+// Whenever Forge's combat list changes (someone joins/leaves, or an initiative
+// is set), save the roster to the mailbox file on GitHub so the standalone DM
+// panel can fetch it with "Update Roster". HP is deliberately not part of the
+// fingerprint, so damage during a fight doesn't trigger saves. Only the GM's
+// browser — the one holding a GitHub token — ever writes. See mailbox.ts.
+const ROSTER_SAVE_DELAY_MS = 3000;
+let lastSavedRoster: string | undefined;
+let rosterTimer: ReturnType<typeof setTimeout> | undefined;
+let isGM: boolean | undefined;
 
-async function broadcastCombatRoster() {
+async function checkRoster() {
   try {
-    const items = await OBR.scene.items.getItems();
-    const combatants = getCombatRoster(items);
-    const message: BridgeMessage = { type: "roster", combatants };
-    dmChannel.postMessage(message);
+    if (isGM === undefined) isGM = (await OBR.player.getRole()) === "GM";
+    if (!isGM || !getGitHubToken()) return;
+    const entries = toRosterEntries(getCombatRoster(await OBR.scene.items.getItems()));
+    const fingerprint = rosterFingerprint(entries);
+    if (fingerprint === lastSavedRoster) return;
+    clearTimeout(rosterTimer);
+    rosterTimer = setTimeout(async () => {
+      try {
+        await saveRoster(entries);
+        lastSavedRoster = fingerprint;
+        log(`Combat roster saved to the mailbox (${entries.length} combatant(s)).`);
+      } catch (err) {
+        log("Couldn't save the combat roster:", err);
+      }
+    }, ROSTER_SAVE_DELAY_MS);
   } catch (err) {
-    // Scene not ready yet, or items briefly unavailable mid-scene-change —
-    // the next item-change or snapshot request will just try again.
-    log("Couldn't broadcast combat roster this cycle:", err);
+    // Scene not ready yet, or items briefly unavailable mid-scene-change.
+    log("Couldn't read the combat roster this cycle:", err);
   }
 }
-
-dmChannel.onmessage = (event: MessageEvent<BridgeMessage>) => {
-  if (event.data?.type === "requestSnapshot") {
-    broadcastCombatRoster();
-  }
-};
 
 function log(...args: unknown[]) {
   console.log("[dicecloud-sync]", ...args);
@@ -138,7 +144,7 @@ function attachItemChangeListener() {
   if (itemChangeListenerAttached) return;
   itemChangeListenerAttached = true;
   OBR.scene.items.onChange(() => {
-    broadcastCombatRoster();
+    checkRoster();
   });
 }
 
@@ -148,14 +154,14 @@ OBR.onReady(async () => {
   if (await OBR.scene.isReady()) {
     startPolling();
     attachItemChangeListener();
-    broadcastCombatRoster();
+    checkRoster();
   }
 
   OBR.scene.onReadyChange((isReady) => {
     if (isReady) {
       startPolling();
       attachItemChangeListener();
-      broadcastCombatRoster();
+      checkRoster();
     } else {
       stopPolling();
     }

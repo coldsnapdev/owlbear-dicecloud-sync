@@ -7,6 +7,7 @@ import {
   type DiceCloudSession,
 } from "./dicecloud";
 import { isForgeUnit, readForgeStats } from "./forge";
+import { getGitHubToken, getMailboxStatus, setGitHubToken } from "./mailbox";
 import {
   getCharacterLinks,
   getStoredCredentials,
@@ -53,14 +54,20 @@ app.innerHTML = `
   <section class="block">
     <h2>DM panel</h2>
     <p class="hint">
-      A standalone combat-roster view, meant to be kept open in its own
-      browser window (e.g. on a second monitor) — separate from this
-      popover, and not shown to players.
+      Whenever Forge's combat list changes, this browser saves the roster to
+      GitHub; the DM panel fetches it with "Update Roster". Needs a GitHub
+      token (fine-grained, owlbear-dicecloud-sync repo, Contents: read and
+      write). Kept only in this browser — only the GM needs one.
     </p>
-    <a id="dm-panel-link" href="./dm-panel.html" target="_blank" rel="noopener">Open DM panel ↗</a>
+    <input id="gh-token" type="password" placeholder="GitHub token" autocomplete="off" />
+    <div class="row">
+      <button id="save-gh-token">Save token</button>
+      <span id="gh-status" class="status"></span>
+    </div>
+    <p class="hint" style="margin-top:8px;"><a id="dm-panel-link" href="./dm-panel.html" target="_blank" rel="noopener">Open DM panel ↗</a> — works in any browser or device.</p>
   </section>
 
-  <p class="hint" style="opacity:0.5;">build 15 — DM panel: live combat roster</p>
+  <p class="hint" style="opacity:0.5;">build 16 — DM panel: combat mailbox</p>
 `;
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;
@@ -70,7 +77,36 @@ const mappingList = document.getElementById("mapping-list")!;
 const ignoredList = document.getElementById("ignored-list")!;
 const debugList = document.getElementById("debug-list")!;
 
+const ghTokenInput = document.getElementById("gh-token") as HTMLInputElement;
+const ghStatus = document.getElementById("gh-status")!;
+
+function renderMailboxStatus() {
+  const token = getGitHubToken();
+  const status = getMailboxStatus();
+  if (!token) {
+    ghStatus.textContent = "No token — roster isn't being saved.";
+    ghStatus.className = "status error";
+  } else if (status) {
+    const time = new Date(status.at).toLocaleTimeString();
+    ghStatus.textContent = status.ok ? `✓ ${status.message} at ${time}` : `Last save failed at ${time}: ${status.message}`;
+    ghStatus.className = status.ok ? "status ok" : "status error";
+  } else {
+    ghStatus.textContent = "Token saved — waiting for the combat list to change.";
+    ghStatus.className = "status";
+  }
+}
+
+document.getElementById("save-gh-token")!.addEventListener("click", () => {
+  setGitHubToken(ghTokenInput.value.trim());
+  ghTokenInput.value = "";
+  ghTokenInput.placeholder = getGitHubToken() ? "•••••••• (saved)" : "GitHub token";
+  renderMailboxStatus();
+});
+
 async function initCredentialsForm() {
+  if (getGitHubToken()) ghTokenInput.placeholder = "•••••••• (saved)";
+  renderMailboxStatus();
+  setInterval(renderMailboxStatus, 5000);
   const stored = getStoredCredentials();
   if (stored) {
     usernameInput.value = stored.usernameOrEmail;

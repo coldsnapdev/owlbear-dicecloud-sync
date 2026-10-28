@@ -32,6 +32,18 @@
       }
       .hint { color: var(--ink-soft); margin: 0 0 20px; font-size: 13px; }
       .hint.warn { color: var(--warn); }
+      .toolbar { display: flex; align-items: center; gap: 12px; margin: 8px 0 16px; }
+      .toolbar .hint { margin: 0; }
+      button {
+        padding: 7px 14px;
+        border: 1px solid var(--brass);
+        background: var(--brass);
+        color: white;
+        border-radius: 5px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      button:disabled { opacity: 0.6; cursor: default; }
       .roster { display: flex; flex-direction: column; gap: 8px; max-width: 640px; }
       .combatant-row {
         display: flex;
@@ -64,7 +76,11 @@
   </head>
   <body>
     <h1>Combat roster</h1>
-    <div id="app"><p class="hint">Connecting…</p></div>
+    <div class="toolbar">
+      <button id="update-roster" type="button">Update Roster</button>
+      <span id="roster-meta" class="hint"></span>
+    </div>
+    <div id="app"></div>
     <script type="module" src="/src/dm-panel.ts"></script>
   </body>
 </html>
