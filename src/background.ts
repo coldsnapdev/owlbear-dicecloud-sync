@@ -1,7 +1,8 @@
 import OBR from "@owlbear-rodeo/sdk";
 import { diceCloudLogin, fetchCreatureStats, fetchCompanionStats, type DiceCloudSession } from "./dicecloud";
-import { writeForgeStats } from "./forge";
+import { writeForgeStats, getCombatRoster } from "./forge";
 import { getStoredCredentials, reconcileMappings, type Mapping } from "./config";
+import { DM_PANEL_CHANNEL, type BridgeMessage } from "./dm-bridge";
 
 // How often to re-check DiceCloud. A few seconds is plenty for HP/AC
 // tracking and stays well clear of anything that could look like abuse of
@@ -17,6 +18,34 @@ let session: DiceCloudSession | undefined;
 // to it at all — keying by creatureId caused exactly that case to be
 // silently skipped forever, since the fingerprint looked identical.
 const lastSeen = new Map<string, string>();
+
+// --- DM panel bridge --------------------------------------------------------
+// The standalone DM panel (dm-panel.html) is NOT an Owlbear extension page —
+// it's an ordinary browser tab the DM opens directly, so it has no OBR SDK
+// access at all. This background script is the only thing that does, so it's
+// responsible for pushing the live combat roster out over a BroadcastChannel
+// any time scene items change. See dm-bridge.ts for why this works and its
+// one real limitation (same browser/profile/machine only).
+const dmChannel = new BroadcastChannel(DM_PANEL_CHANNEL);
+
+async function broadcastCombatRoster() {
+  try {
+    const items = await OBR.scene.items.getItems();
+    const combatants = getCombatRoster(items);
+    const message: BridgeMessage = { type: "roster", combatants };
+    dmChannel.postMessage(message);
+  } catch (err) {
+    // Scene not ready yet, or items briefly unavailable mid-scene-change —
+    // the next item-change or snapshot request will just try again.
+    log("Couldn't broadcast combat roster this cycle:", err);
+  }
+}
+
+dmChannel.onmessage = (event: MessageEvent<BridgeMessage>) => {
+  if (event.data?.type === "requestSnapshot") {
+    broadcastCombatRoster();
+  }
+};
 
 function log(...args: unknown[]) {
   console.log("[dicecloud-sync]", ...args);
@@ -100,16 +129,33 @@ function stopPolling() {
   log("Scene closed — sync loop paused.");
 }
 
+let itemChangeListenerAttached = false;
+
+function attachItemChangeListener() {
+  // Scene APIs (including registering this listener) throw if called
+  // before a scene is actually open — only ever call this once isReady()
+  // is confirmed true, same guard popover.ts uses for the same reason.
+  if (itemChangeListenerAttached) return;
+  itemChangeListenerAttached = true;
+  OBR.scene.items.onChange(() => {
+    broadcastCombatRoster();
+  });
+}
+
 OBR.onReady(async () => {
   log("Extension background ready.");
 
   if (await OBR.scene.isReady()) {
     startPolling();
+    attachItemChangeListener();
+    broadcastCombatRoster();
   }
 
   OBR.scene.onReadyChange((isReady) => {
     if (isReady) {
       startPolling();
+      attachItemChangeListener();
+      broadcastCombatRoster();
     } else {
       stopPolling();
     }

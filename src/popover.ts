@@ -50,7 +50,17 @@ app.innerHTML = `
     <div id="debug-list"></div>
   </section>
 
-  <p class="hint" style="opacity:0.5;">build 14 — temp HP now syncs to Forge</p>
+  <section class="block">
+    <h2>DM panel</h2>
+    <p class="hint">
+      A standalone combat-roster view, meant to be kept open in its own
+      browser window (e.g. on a second monitor) — separate from this
+      popover, and not shown to players.
+    </p>
+    <a id="dm-panel-link" href="./dm-panel.html" target="_blank" rel="noopener">Open DM panel ↗</a>
+  </section>
+
+  <p class="hint" style="opacity:0.5;">build 15 — DM panel: live combat roster</p>
 `;
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;

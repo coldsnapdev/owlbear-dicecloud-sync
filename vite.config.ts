@@ -11,6 +11,7 @@ export default defineConfig({
       input: {
         popover: resolve(__dirname, "index.html"),
         background: resolve(__dirname, "background.html"),
+        dmPanel: resolve(__dirname, "dm-panel.html"),
       },
     },
   },

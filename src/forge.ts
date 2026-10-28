@@ -1,4 +1,4 @@
-import OBR from "@owlbear-rodeo/sdk";
+import OBR, { type Item } from "@owlbear-rodeo/sdk";
 import type { CreatureStats } from "./dicecloud";
 
 // Forge! (by Battle-System) stores each unit's attributes as ordinary
@@ -27,6 +27,25 @@ export const FORGE_KEYS = {
   // unescapes (the ~1 escapes a "/" within the one property name, not a
   // path separator — same gotcha as the other three keys) to this flat key.
   tempHP: "com.battle-system.forge/Z042",
+  // Captured 2026-10-28 the same way, while adding Alric Venn's token to
+  // combat and setting his initiative to 15 in Forge. Three keys this time,
+  // and unlike the HP/AC/tempHP ones, Forge used readable names instead of
+  // Z-codes:
+  //   name     - the display name Forge shows in its own initiative list
+  //   init     - the initiative number. Written as an actual JSON number
+  //              (15), NOT a string like the other stat keys ("15") — worth
+  //              remembering when reading it back.
+  //   onList   - presence of this key is what actually means "in the
+  //              current fight". Confirmed by removing Alric Venn from
+  //              combat and watching the resulting patch: it was an
+  //              `"op":"remove"` on this exact key, while `init` was left
+  //              untouched (it persists even after combat ends — a token
+  //              can have a leftover init value without being on-list).
+  //              So "on combat list" must be checked by key presence, not
+  //              by truthiness of a value.
+  name: "com.battle-system.forge/name",
+  init: "com.battle-system.forge/init",
+  onList: "com.battle-system.forge/on-list",
 } as const;
 
 /**
@@ -78,4 +97,51 @@ export function isForgeUnit(metadata: Record<string, unknown>): boolean {
     FORGE_KEYS.maxHP in metadata ||
     FORGE_KEYS.ac in metadata
   );
+}
+
+/** True if this item is currently on Forge's combat/initiative list. See the on-list note above. */
+export function isOnCombatList(metadata: Record<string, unknown>): boolean {
+  return FORGE_KEYS.onList in metadata;
+}
+
+export interface Combatant {
+  itemId: string;
+  /** Forge's own tracked name for this combatant — falls back to the item's own name if absent. */
+  name: string;
+  initiative: number;
+  currentHP?: number;
+  maxHP?: number;
+  ac?: number;
+  tempHP?: number;
+}
+
+/**
+ * Builds the current combat roster straight from scene items: anyone
+ * carrying Forge's on-list key, sorted by initiative descending (highest
+ * acts first, standard 5e order).
+ */
+export function getCombatRoster(items: Item[]): Combatant[] {
+  return items
+    .filter((item) => isOnCombatList(item.metadata))
+    .map((item): Combatant => {
+      const stats = readForgeStats(item.metadata);
+      const name = (item.metadata[FORGE_KEYS.name] as string | undefined) ?? item.name;
+      const initiative = Number(item.metadata[FORGE_KEYS.init] ?? 0);
+      return {
+        itemId: item.id,
+        name,
+        initiative: Number.isFinite(initiative) ? initiative : 0,
+        currentHP: numberOrUndefined(stats.currentHP),
+        maxHP: numberOrUndefined(stats.maxHP),
+        ac: numberOrUndefined(stats.ac),
+        tempHP: numberOrUndefined(stats.tempHP),
+      };
+    })
+    .sort((a, b) => b.initiative - a.initiative);
+}
+
+function numberOrUndefined(v: unknown): number | undefined {
+  if (v === undefined) return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
 }

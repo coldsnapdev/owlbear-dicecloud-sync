@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DM Panel — DiceCloud Sync</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --ink: #1b222b;
+        --ink-soft: #6b7280;
+        --paper: #fbfcfc;
+        --line: #d8dde0;
+        --brass: #8f6526;
+        --ok: #2f6b4a;
+        --warn: #8f3a26;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 24px;
+        font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: var(--paper);
+      }
+      h1 {
+        font-size: 15px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--brass);
+        margin: 0 0 4px;
+      }
+      .hint { color: var(--ink-soft); margin: 0 0 20px; font-size: 13px; }
+      .hint.warn { color: var(--warn); }
+      .roster { display: flex; flex-direction: column; gap: 8px; max-width: 640px; }
+      .combatant-row {
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+        padding: 10px 14px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: white;
+      }
+      .init {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--brass);
+        min-width: 1.5em;
+        text-align: right;
+      }
+      .name { font-weight: 600; flex: 1; }
+      .stats { color: var(--ink-soft); font-size: 13px; white-space: nowrap; }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          --ink: #e8eaed;
+          --ink-soft: #9aa3ad;
+          --paper: #14181d;
+          --line: #2b323a;
+        }
+        .combatant-row { background: #1b222b; }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Combat roster</h1>
+    <div id="app"><p class="hint">Connecting…</p></div>
+    <script type="module" src="/src/dm-panel.ts"></script>
+  </body>
+</html>
