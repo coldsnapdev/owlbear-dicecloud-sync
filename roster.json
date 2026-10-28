@@ -1,6 +1,12 @@
 {
- "savedAt": "2026-10-28T10:08:39.895Z",
+ "savedAt": "2026-10-28T10:09:16.183Z",
  "combatants": [
+  {
+   "itemId": "8367561a-6dcc-4e83-a0ca-f90c3a66c604",
+   "name": "Rot Skulker 4",
+   "initiative": 15,
+   "ac": 10
+  },
   {
    "itemId": "2de15995-ebe1-42c0-99b0-16c216518b05",
    "name": "Jenok",
@@ -24,12 +30,6 @@
    "name": "Wren",
    "initiative": 0,
    "ac": 11
-  },
-  {
-   "itemId": "8367561a-6dcc-4e83-a0ca-f90c3a66c604",
-   "name": "Rot Skulker 4",
-   "initiative": 0,
-   "ac": 10
   },
   {
    "itemId": "4de430d6-8454-446f-84b4-f0b04b8a178b",
