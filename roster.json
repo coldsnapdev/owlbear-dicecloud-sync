@@ -1,6 +1,12 @@
 {
- "savedAt": "2026-10-28T10:09:51.754Z",
+ "savedAt": "2026-10-28T10:09:55.960Z",
  "combatants": [
+  {
+   "itemId": "f1bdb335-d08e-4bfc-9a71-247a12609177",
+   "name": "An",
+   "initiative": 21,
+   "ac": 16
+  },
   {
    "itemId": "ec8eb598-5897-4d19-ae1e-203e1a70d22b",
    "name": "Danzel",
@@ -24,12 +30,6 @@
    "name": "Jenok",
    "initiative": 0,
    "ac": 15
-  },
-  {
-   "itemId": "f1bdb335-d08e-4bfc-9a71-247a12609177",
-   "name": "An",
-   "initiative": 0,
-   "ac": 16
   },
   {
    "itemId": "4de430d6-8454-446f-84b4-f0b04b8a178b",
