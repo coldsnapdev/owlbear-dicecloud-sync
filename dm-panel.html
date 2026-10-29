@@ -55,6 +55,20 @@
       .act { font-size: 14px; padding: 4px 0; }
       .hint.small { font-size: 12px; margin: 8px 0 0; }
       .settings { margin-top: 24px; max-width: 640px; }
+      .layout { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+      #app { flex: 1 1 560px; min-width: 0; }
+      aside { flex: 0 1 340px; position: sticky; top: 16px; }
+      aside h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--brass); margin: 0 0 8px; }
+      .logline { font-size: 13px; padding: 6px 10px; border-left: 3px solid var(--line); margin-bottom: 4px; color: var(--ink-soft); }
+      .logline.latest { color: var(--ink); border-left-color: var(--brass); font-size: 15px; }
+      .logline.crit { border-left-color: var(--ok); }
+      .logline.fumble { border-left-color: var(--warn); }
+      .logline .who { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); }
+      .chipwrap { white-space: nowrap; }
+      .chip { font-size: 12px; padding: 1px 7px; margin: 0 2px; border-radius: 10px; }
+      .chip.dmg { background: transparent; color: var(--brass); }
+      .chip.mini { background: transparent; color: var(--ink-soft); border-color: var(--line); padding: 1px 5px; margin: 0 1px; }
+      .res { font-size: 13px; margin-left: 4px; color: var(--ink); }
       .settings summary { cursor: pointer; color: var(--ink-soft); font-size: 13px; }
       .settings input { flex: 1; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; font-size: 13px; background: transparent; color: var(--ink); }
       .roster { display: flex; flex-direction: column; gap: 8px; max-width: 640px; }
@@ -94,7 +108,10 @@
       <button id="update-roster" type="button">Update Roster</button>
       <span id="roster-meta" class="hint"></span>
     </div>
-    <div id="app"></div>
+    <div class="layout">
+      <div id="app"></div>
+      <aside><h2>Rolls</h2><div id="roll-log"></div></aside>
+    </div>
     <details class="settings">
       <summary>Settings</summary>
       <p class="hint">GitHub token (fine-grained, owlbear-dicecloud-sync repo, Contents: read and write), so stat block choices are saved for every device. Kept only in this browser.</p>
