@@ -1,126 +1,195 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DM Panel — DiceCloud Sync</title>
+    <title>DM Panel — Abelon</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
     <style>
       :root {
-        color-scheme: light dark;
-        --ink: #1b222b;
-        --ink-soft: #6b7280;
-        --paper: #fbfcfc;
-        --line: #d8dde0;
-        --brass: #8f6526;
-        --ok: #2f6b4a;
-        --warn: #8f3a26;
+        --bg: #17120d;
+        --panel: #211a12;
+        --panel-2: #2a2117;
+        --ink: #ece0c6;
+        --ink-soft: #a8977a;
+        --ink-faint: #75674f;
+        --line: #4a3c2a;
+        --brass: #c9a25e;
+        --brass-deep: #8f6a2c;
+        --copper: #c27a4a;
+        --verdigris: #5fb39b;
+        --blood: #c0614a;
+        --poison: #8fb35f;
+        --arcane: #9a8ce0;
+        --radius: 8px;
       }
       * { box-sizing: border-box; }
       body {
         margin: 0;
-        padding: 24px;
-        font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        padding: 20px 16px 48px;
+        font: 16px/1.5 "Crimson Pro", Georgia, serif;
         color: var(--ink);
-        background: var(--paper);
+        background: radial-gradient(ellipse at top, #241b12 0%, var(--bg) 60%) fixed;
       }
-      h1 {
-        font-size: 15px;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        color: var(--brass);
-        margin: 0 0 4px;
+      button { font: inherit; color: inherit; }
+      .page { max-width: 1240px; margin: 0 auto; }
+
+      /* Header */
+      header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+      h1 { font: 600 18px/1 Cinzel, serif; letter-spacing: .12em; text-transform: uppercase; color: var(--brass); margin: 0; }
+      #update-roster {
+        font: 600 12px/1 Cinzel, serif; letter-spacing: .1em; text-transform: uppercase;
+        padding: 10px 16px; border-radius: 999px; cursor: pointer;
+        color: #1b140c; background: linear-gradient(180deg, #e2bf7c, var(--brass) 55%, var(--brass-deep));
+        border: 1px solid #f0d49a; box-shadow: 0 2px 0 #5c4219, 0 6px 14px rgba(0,0,0,.35);
+        transition: transform .08s, box-shadow .08s, filter .15s;
       }
-      .hint { color: var(--ink-soft); margin: 0 0 20px; font-size: 13px; }
-      .hint.warn { color: var(--warn); }
-      .toolbar { display: flex; align-items: center; gap: 12px; margin: 8px 0 16px; }
-      .toolbar .hint { margin: 0; }
-      button {
-        padding: 7px 14px;
-        border: 1px solid var(--brass);
-        background: var(--brass);
-        color: white;
-        border-radius: 5px;
-        font-size: 13px;
-        cursor: pointer;
+      #update-roster:hover { filter: brightness(1.08); }
+      #update-roster:active { transform: translateY(2px); box-shadow: 0 0 0 #5c4219, 0 2px 6px rgba(0,0,0,.35); }
+      #update-roster:disabled { opacity: .6; cursor: default; }
+      #roster-meta { font-size: 14px; color: var(--ink-soft); font-style: italic; }
+      #roster-meta.warn, .warn { color: var(--blood); }
+
+      .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 22px; align-items: start; }
+      @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } aside { position: static !important; } }
+      .empty { color: var(--ink-soft); font-style: italic; }
+
+      /* Combatant rows */
+      .combatant { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; transition: border-color .15s; }
+      .combatant.open { border-color: var(--brass-deep); box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+      .head {
+        width: 100%; display: flex; align-items: center; gap: 14px; padding: 10px 14px;
+        background: none; border: 0; text-align: left; cursor: pointer;
       }
-      button:disabled { opacity: 0.6; cursor: default; }
-      button.secondary { background: transparent; color: var(--brass); padding: 4px 10px; font-size: 12px; }
-      .roster { max-width: 860px; }
-      .combatant { border: 1px solid var(--line); border-radius: 6px; background: white; margin-bottom: 8px; }
-      .combatant .combatant-row { border: none; background: transparent; align-items: center; flex-wrap: wrap; }
-      .alias { color: var(--ink-soft); font-weight: 400; font-size: 13px; }
-      .pick { font-size: 13px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: var(--ink); max-width: 220px; }
-      .block { padding: 4px 14px 12px 50px; border-top: 1px solid var(--line); }
-      .block-stats { font-size: 13px; color: var(--ink-soft); margin: 8px 0; }
-      .act { font-size: 14px; padding: 4px 0; }
-      .hint.small { font-size: 12px; margin: 8px 0 0; }
-      .settings { margin-top: 24px; max-width: 640px; }
-      .layout { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
-      #app { flex: 1 1 560px; min-width: 0; }
-      aside { flex: 0 1 340px; position: sticky; top: 16px; }
-      aside h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--brass); margin: 0 0 8px; }
-      .logline { font-size: 13px; padding: 6px 10px; border-left: 3px solid var(--line); margin-bottom: 4px; color: var(--ink-soft); }
-      .logline.latest { color: var(--ink); border-left-color: var(--brass); font-size: 15px; }
-      .logline.crit { border-left-color: var(--ok); }
-      .logline.fumble { border-left-color: var(--warn); }
-      .logline .who { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); }
-      .chipwrap { white-space: nowrap; }
-      .chip { font-size: 12px; padding: 1px 7px; margin: 0 2px; border-radius: 10px; }
-      .chip.dmg { background: transparent; color: var(--brass); }
-      .chip.mini { background: transparent; color: var(--ink-soft); border-color: var(--line); padding: 1px 5px; margin: 0 1px; }
-      .res { font-size: 13px; margin-left: 4px; color: var(--ink); }
-      .settings summary { cursor: pointer; color: var(--ink-soft); font-size: 13px; }
-      .settings input { flex: 1; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; font-size: 13px; background: transparent; color: var(--ink); }
-      .roster { display: flex; flex-direction: column; gap: 8px; max-width: 640px; }
-      .combatant-row {
-        display: flex;
-        align-items: baseline;
-        gap: 14px;
-        padding: 10px 14px;
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        background: white;
-      }
+      .head:hover { background: var(--panel-2); }
+      .head:focus-visible { outline: 2px solid var(--brass); outline-offset: -2px; }
       .init {
-        font-size: 18px;
-        font-weight: 600;
-        color: var(--brass);
-        min-width: 1.5em;
-        text-align: right;
+        flex: none; width: 40px; height: 40px; border-radius: 50%;
+        display: grid; place-items: center;
+        font: 600 16px/1 Cinzel, serif; color: #1b140c;
+        background: radial-gradient(circle at 35% 30%, #f0d49a, var(--brass) 55%, var(--brass-deep));
+        box-shadow: inset 0 -2px 0 rgba(0,0,0,.25), 0 1px 3px rgba(0,0,0,.5);
       }
-      .name { font-weight: 600; flex: 1; }
-      .stats { color: var(--ink-soft); font-size: 13px; white-space: nowrap; }
-      @media (prefers-color-scheme: dark) {
-        :root:not([data-theme="light"]) {
-          --ink: #e8eaed;
-          --ink-soft: #9aa3ad;
-          --paper: #14181d;
-          --line: #2b323a;
-        }
-        .combatant-row { background: #1b222b; }
-        .combatant { background: #1b222b; }
+      .party .init { background: radial-gradient(circle at 35% 30%, #cfe9df, var(--verdigris) 60%, #2f6b5a); }
+      .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+      .name { font-size: 19px; font-weight: 600; line-height: 1.2; }
+      .alias { font-size: 13px; color: var(--ink-faint); font-style: italic; }
+      .tag { font: 500 10px/1 Cinzel, serif; letter-spacing: .1em; text-transform: uppercase; padding: 5px 8px; border-radius: 999px; border: 1px solid var(--verdigris); color: var(--verdigris); }
+      .tag.set { border-color: var(--copper); color: var(--copper); }
+      .ac {
+        flex: none; display: grid; place-items: center; width: 44px; height: 48px;
+        font: 600 17px/1 Cinzel, serif; color: var(--ink);
+        background: var(--panel-2); border: 1px solid var(--line);
+        clip-path: polygon(50% 0, 100% 14%, 100% 58%, 50% 100%, 0 58%, 0 14%);
+        padding-top: 4px;
       }
+      .ac small, .vitals small { display: block; font: 500 9px/1 Cinzel, serif; letter-spacing: .1em; color: var(--ink-faint); }
+      .chev { flex: none; width: 10px; height: 10px; border-right: 2px solid var(--ink-soft); border-bottom: 2px solid var(--ink-soft); transform: rotate(-45deg); transition: transform .2s; margin: 0 4px; }
+      .open .chev { transform: rotate(45deg); }
+
+      .body { padding: 4px 16px 16px; border-top: 1px solid var(--line); }
+      .picker { display: flex; align-items: center; gap: 10px; font: 500 11px/1 Cinzel, serif; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); margin: 12px 0 4px; }
+      .pick { font: 15px "Crimson Pro", serif; color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; min-width: 220px; }
+
+      /* Stat block */
+      .vitals { display: flex; gap: 22px; margin: 14px 0 6px; font: 600 18px/1.1 Cinzel, serif; }
+      .vitals span { display: flex; flex-direction: column; gap: 4px; }
+      h3 { font: 600 11px/1 Cinzel, serif; letter-spacing: .14em; text-transform: uppercase; color: var(--brass); margin: 18px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+      .action { padding: 10px 12px; margin-bottom: 8px; background: var(--panel-2); border-radius: 6px; border-left: 3px solid var(--brass-deep); }
+      .action.trait { background: transparent; border-left-color: var(--line); padding: 6px 12px; }
+      .action-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+      .action-name { font-weight: 600; font-size: 17px; }
+      .dc { font: 600 11px/1 Cinzel, serif; letter-spacing: .06em; padding: 4px 7px; border-radius: 4px; background: rgba(154,140,224,.14); color: var(--arcane); border: 1px solid rgba(154,140,224,.35); }
+      .action-text { color: var(--ink-soft); font-size: 15px; margin-top: 4px; }
+      .action.trait .action-text { display: inline; margin-left: 6px; }
+      .action.trait .action-head { display: inline; }
+      .dice { color: var(--ink); font-weight: 600; }
+      .tactics { margin-top: 14px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 6px; color: var(--ink-soft); font-style: italic; }
+      .source { margin-top: 12px; font-size: 13px; color: var(--ink-faint); font-style: italic; }
+
+      /* Roll buttons */
+      .rolls { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 8px 0 2px; }
+      .rollgroup { display: inline-flex; align-items: center; gap: 6px; }
+      .roll {
+        cursor: pointer; border-radius: 6px; padding: 6px 12px;
+        font: 600 14px/1 "Crimson Pro", serif;
+        transition: transform .06s, filter .15s, box-shadow .06s;
+      }
+      .roll:active { transform: translateY(1px); }
+      .roll.hit {
+        color: #1b140c; border: 1px solid #f0d49a;
+        background: linear-gradient(180deg, #e2bf7c, var(--brass) 60%, var(--brass-deep));
+        box-shadow: 0 2px 0 #5c4219;
+        font-family: Cinzel, serif; font-size: 12px; letter-spacing: .06em;
+      }
+      .roll.hit:hover { filter: brightness(1.08); }
+      .seg { display: inline-flex; }
+      .roll.mode { padding: 6px 8px; font-size: 12px; background: transparent; border: 1px solid var(--line); color: var(--ink-soft); border-radius: 0; }
+      .roll.mode:first-child { border-radius: 6px 0 0 6px; }
+      .roll.mode:last-child { border-radius: 0 6px 6px 0; border-left: 0; }
+      .roll.mode:hover { color: var(--ink); border-color: var(--brass-deep); }
+      .roll.dmg { --c: var(--copper); background: transparent; color: var(--ink); border: 1px solid var(--c); box-shadow: inset 0 0 0 1px rgba(0,0,0,.2); }
+      .roll.dmg i { font-style: normal; color: var(--c); font-weight: 400; }
+      .roll.dmg:hover { background: color-mix(in srgb, var(--c) 18%, transparent); }
+      .roll.dmg.poison { --c: var(--poison); }
+      .roll.dmg.necrotic { --c: #8e7bb5; }
+      .roll.dmg.fire { --c: #e0773f; }
+      .roll.dmg.cold { --c: #7fb7d8; }
+      .roll.dmg.radiant { --c: #e8d27a; }
+      .roll.dmg.psychic, .roll.dmg.force { --c: var(--arcane); }
+      .roll.dmg.lightning, .roll.dmg.thunder { --c: #7f9bd8; }
+      .roll.dmg.acid { --c: #a6c94a; }
+      .roll.dmg.plain { --c: var(--ink-faint); }
+      .result { font-size: 15px; }
+      .fresh { animation: pop .25s ease-out; }
+      .result b { font: 600 20px/1 Cinzel, serif; color: var(--ink); }
+      em.crit { color: var(--verdigris); font-style: normal; font-weight: 600; }
+      em.fumble { color: var(--blood); font-style: normal; font-weight: 600; }
+      @keyframes pop { from { transform: scale(.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+      /* Roll log */
+      aside { position: sticky; top: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+      aside h2 { font: 600 12px/1 Cinzel, serif; letter-spacing: .14em; text-transform: uppercase; color: var(--brass); margin: 0 0 10px; }
+      .logline { padding: 8px 10px; border-left: 3px solid var(--line); margin-bottom: 6px; border-radius: 0 6px 6px 0; color: var(--ink-soft); }
+      .logline .who { display: block; font: 500 10px/1.3 Cinzel, serif; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); }
+      .logline .big { font: 600 18px/1 Cinzel, serif; color: var(--ink); margin-right: 4px; }
+      .logline .how { font-size: 13px; color: var(--ink-faint); margin-left: 4px; }
+      .logline.latest { background: var(--panel-2); border-left-color: var(--brass); color: var(--ink); }
+      .logline.latest .big { font-size: 26px; }
+      .logline.crit { border-left-color: var(--verdigris); }
+      .logline.fumble { border-left-color: var(--blood); }
+
+      /* Settings */
+      .settings { margin-top: 28px; max-width: 640px; color: var(--ink-soft); font-size: 14px; }
+      .settings summary { cursor: pointer; font: 500 11px/1 Cinzel, serif; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }
+      .settings .row { display: flex; gap: 10px; margin: 8px 0; }
+      .settings input { flex: 1; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; font: 14px "Crimson Pro", serif; background: var(--panel-2); color: var(--ink); }
+      #save-gh-token { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--brass-deep); background: transparent; color: var(--brass); cursor: pointer; font: 600 11px/1 Cinzel, serif; letter-spacing: .08em; text-transform: uppercase; }
+      .hint { margin: 4px 0; }
     </style>
   </head>
   <body>
-    <h1>Combat roster</h1>
-    <div class="toolbar">
-      <button id="update-roster" type="button">Update Roster</button>
-      <span id="roster-meta" class="hint"></span>
-    </div>
-    <div class="layout">
-      <div id="app"></div>
-      <aside><h2>Rolls</h2><div id="roll-log"></div></aside>
-    </div>
-    <details class="settings">
-      <summary>Settings</summary>
-      <p class="hint">GitHub token (fine-grained, owlbear-dicecloud-sync repo, Contents: read and write), so stat block choices are saved for every device. Kept only in this browser.</p>
-      <div class="toolbar">
-        <input id="gh-token" type="password" autocomplete="off" />
-        <button id="save-gh-token" type="button">Save token</button>
+    <div class="page">
+      <header>
+        <h1>Combat</h1>
+        <button id="update-roster" type="button">Update Roster</button>
+        <span id="roster-meta"></span>
+      </header>
+      <div class="layout">
+        <main id="app"></main>
+        <aside><h2>Rolls</h2><div id="roll-log"></div></aside>
       </div>
-      <p id="token-status" class="hint"></p>
-    </details>
+      <details class="settings">
+        <summary>Settings</summary>
+        <p class="hint">GitHub token (fine-grained, owlbear-dicecloud-sync repo, Contents: read and write), so stat block choices are saved for every device. Kept only in this browser.</p>
+        <div class="row">
+          <input id="gh-token" type="password" autocomplete="off" />
+          <button id="save-gh-token" type="button">Save token</button>
+        </div>
+        <p id="token-status" class="hint"></p>
+      </details>
+    </div>
     <script type="module" src="/src/dm-panel.ts"></script>
   </body>
 </html>

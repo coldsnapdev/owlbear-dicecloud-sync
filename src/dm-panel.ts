@@ -147,27 +147,65 @@ interface LogLine {
 const rollLog: LogLine[] = [];
 const lastResult = new Map<string, string>(); // chip key -> short result shown beside it
 const critPending = new Set<string>(); // "itemId|action" after a natural 20
+let freshKey: string | undefined; // the roll just made, so only it animates
 
-function chips(text: string, ctx: { itemId: string; who: string; action: string }): string {
-  let i = 0;
-  return escapeHtml(text).replace(/\[([^\]]+)\]/g, (whole, inner: string) => {
-    const expr = inner.trim();
-    const m = expr.replace(/\s+/g, "").match(DICE_RE);
-    if (!m) return whole;
-    const isHit = Number(m[2]) === 20 && Number(m[1] || 1) === 1;
-    const key = `${ctx.itemId}|${ctx.action}|${i++}`;
-    const data = `data-key="${escapeHtml(key)}" data-expr="${escapeHtml(expr)}" data-kind="${isHit ? "hit" : "dmg"}" data-item="${escapeHtml(ctx.itemId)}" data-who="${escapeHtml(ctx.who)}" data-action="${escapeHtml(ctx.action)}"`;
-    const hitMod = Number((m[3] || "0").replace(/\s+/g, ""));
-    const label = isHit ? `d20${hitMod >= 0 ? "+" : "−"}${Math.abs(hitMod)}` : escapeHtml(expr);
-    const res = lastResult.get(key);
-    return `<span class="chipwrap"><button type="button" class="chip ${isHit ? "hit" : "dmg"}" ${data}>${label}</button>${
-      isHit ? `<button type="button" class="chip mini" ${data} data-mode="adv" title="Advantage">A</button><button type="button" class="chip mini" ${data} data-mode="dis" title="Disadvantage">D</button>` : ""
-    }${res ? `<span class="res">${res}</span>` : ""}</span>`;
-  });
+// --- Parsing a Forge action into something clickable ---------------------------
+const DAMAGE_TYPES = new Set(["acid","bludgeoning","cold","fire","force","lightning","necrotic","piercing","poison","psychic","radiant","slashing","thunder","healing"]);
+const ABILITIES: Record<string, string> = { strength: "Str", dexterity: "Dex", constitution: "Con", intelligence: "Int", wisdom: "Wis", charisma: "Cha", str: "Str", dex: "Dex", con: "Con", int: "Int", wis: "Wis", cha: "Cha" };
+
+type Category = "action" | "bonus" | "reaction" | "legendary" | "trait" | "tactics";
+interface RollSpec { key: string; expr: string; kind: "hit" | "dmg"; mod: number; type: string }
+interface ParsedAction { title: string; category: Category; rolls: RollSpec[]; dcs: string[]; text: string }
+
+function categorise(name: string): { category: Category; title: string } {
+  const strip = (re: RegExp) => name.replace(re, "").trim();
+  if (/^tactics/i.test(name)) return { category: "tactics", title: "Tactics" };
+  if (/^trait:|\(trait\)/i.test(name)) return { category: "trait", title: strip(/^trait:\s*|\s*\(trait\)/gi) };
+  if (/^bonus action:|\(bonus action\)/i.test(name)) return { category: "bonus", title: strip(/^bonus action:\s*|\s*\(bonus action\)/gi) };
+  if (/^reaction:|\(reaction\)/i.test(name)) return { category: "reaction", title: strip(/^reaction:\s*|\s*\(reaction\)/gi) };
+  if (/legendary/i.test(name)) return { category: "legendary", title: strip(/^legendary( action)?:\s*|\s*\(legendary( action)?\)/gi) };
+  return { category: "action", title: name };
 }
 
-function onChip(btn: HTMLButtonElement) {
-  const { key, expr, kind, item, who, action, mode } = btn.dataset as Record<string, string>;
+function parseAction(a: { name: string; description: string }, itemId: string): ParsedAction {
+  const { category, title } = categorise(a.name);
+  const rolls: RollSpec[] = [];
+  const re = /\[([^\]]+)\]\s*([A-Za-z]+)?/g;
+  let m: RegExpExecArray | null;
+  let i = 0;
+  while ((m = re.exec(a.description))) {
+    const expr = m[1].trim();
+    const d = expr.replace(/\s+/g, "").match(DICE_RE);
+    if (!d) continue;
+    const isHit = Number(d[2]) === 20 && Number(d[1] || 1) === 1;
+    const word = (m[2] || "").toLowerCase();
+    rolls.push({
+      key: `${itemId}|${a.name}|${i++}`,
+      expr,
+      kind: isHit ? "hit" : "dmg",
+      mod: Number((d[3] || "0").replace(/\s+/g, "")),
+      type: !isHit && DAMAGE_TYPES.has(word) ? word : "",
+    });
+  }
+  const dcs = Array.from(a.description.matchAll(/DC\s*(\d+)\s+([A-Za-z]+)/g)).map((x) => `DC ${x[1]} ${ABILITIES[x[2].toLowerCase()] ?? x[2]}`);
+  // Description text with dice shown as quiet inline marks (the buttons do the rolling)
+  const text = escapeHtml(a.description).replace(/\[([^\]]+)\]/g, '<span class="dice">$1</span>');
+  return { title, category, rolls, dcs, text };
+}
+
+function rollButtons(r: RollSpec, ctx: { itemId: string; who: string; action: string }): string {
+  const data = `data-key="${escapeHtml(r.key)}" data-expr="${escapeHtml(r.expr)}" data-kind="${r.kind}" data-type="${r.type}" data-item="${escapeHtml(ctx.itemId)}" data-who="${escapeHtml(ctx.who)}" data-action="${escapeHtml(ctx.action)}"`;
+  const res = lastResult.get(r.key);
+  const out = res ? `<span class="result${freshKey === r.key ? " fresh" : ""}">${res}</span>` : "";
+  if (r.kind === "hit") {
+    const sign = r.mod >= 0 ? "+" : "−";
+    return `<span class="rollgroup"><button type="button" class="roll hit" ${data} title="Roll to hit">Attack ${sign}${Math.abs(r.mod)}</button><span class="seg"><button type="button" class="roll mode" ${data} data-mode="adv" title="Roll with advantage">Adv</button><button type="button" class="roll mode" ${data} data-mode="dis" title="Roll with disadvantage">Dis</button></span>${out}</span>`;
+  }
+  return `<span class="rollgroup"><button type="button" class="roll dmg ${r.type || "plain"}" ${data} title="Roll ${escapeHtml(r.expr)}">${escapeHtml(r.expr)}${r.type ? ` <i>${r.type}</i>` : ""}</button>${out}</span>`;
+}
+
+function onRoll(btn: HTMLButtonElement) {
+  const { key, expr, kind, type, item, who, action, mode } = btn.dataset as Record<string, string>;
   const critKey = `${item}|${action}`;
   if (kind === "hit") {
     const r = rollExpr(expr, { mode: (mode as "adv" | "dis") || undefined });
@@ -176,99 +214,122 @@ function onChip(btn: HTMLButtonElement) {
     const nat = d20 === 20 ? "crit" : d20 === 1 ? "fumble" : undefined;
     if (nat === "crit") critPending.add(critKey);
     else critPending.delete(critKey);
-    const how = r.kept !== undefined ? `d20 ${r.dice.join(" / ")} (${mode === "adv" ? "adv" : "dis"}) → ${d20}` : `d20 ${d20}`;
-    const tag = nat === "crit" ? " — natural 20!" : nat === "fumble" ? " — natural 1" : "";
-    lastResult.set(key, `<b>${r.total}</b>${tag}`);
-    rollLog.unshift({ who, action, text: `to hit <b>${r.total}</b> (${how}${signed(r.mod)})${tag}`, tone: nat });
+    const how = r.kept !== undefined ? `d20 ${r.dice.join(" / ")} ${mode === "adv" ? "adv" : "dis"} → ${d20}` : `d20 ${d20}`;
+    const tag = nat === "crit" ? "Natural 20" : nat === "fumble" ? "Natural 1" : "";
+    lastResult.set(key, `<b>${r.total}</b>${tag ? ` <em class="${nat}">${tag}</em>` : ""}`);
+    rollLog.unshift({ who, action, text: `<span class="big">${r.total}</span> to hit <span class="how">${how}${signed(r.mod)}</span>${tag ? ` <em class="${nat}">${tag}</em>` : ""}`, tone: nat });
   } else {
+    // A crit stays live until that action's next to-hit roll, so every damage
+    // die in a critical hit (e.g. Hairpin's piercing AND poison) is doubled.
     const crit = critPending.has(critKey);
     const r = rollExpr(expr, { double: crit });
     if (!r) return;
-    // Stays set until the next to-hit roll, so every damage die in a critical
-    // hit (e.g. Hairpin's piercing AND poison) is doubled.
-    const after = btn.parentElement?.nextSibling?.textContent?.trim().split(/[\s.,]/)[0] ?? "";
-    const type = /^[a-z]+$/i.test(after) && after.toLowerCase() !== "to" ? ` ${after}` : "";
-    lastResult.set(key, `<b>${r.total}</b>${crit ? " (crit)" : ""}`);
+    lastResult.set(key, `<b>${r.total}</b>${crit ? ` <em class="crit">crit</em>` : ""}`);
     rollLog.unshift({
       who,
       action,
-      text: `<b>${r.total}</b>${escapeHtml(type)} (${r.dice.join(" + ")}${signed(r.mod)})${crit ? " — critical, dice doubled" : ""}`,
+      text: `<span class="big">${r.total}</span> ${escapeHtml(type || "")} <span class="how">${r.dice.join(" + ")}${signed(r.mod)}</span>${crit ? ` <em class="crit">Critical: dice doubled</em>` : ""}`,
       tone: crit ? "crit" : undefined,
     });
   }
   rollLog.splice(12);
+  freshKey = key;
   render();
+  freshKey = undefined;
 }
 
 function renderLog() {
   const el = document.getElementById("roll-log");
   if (!el) return;
   el.innerHTML = rollLog.length
-    ? rollLog
-        .map((l, i) => `<div class="logline ${l.tone ?? ""} ${i === 0 ? "latest" : ""}"><span class="who">${escapeHtml(l.who)} · ${escapeHtml(l.action)}</span> ${l.text}</div>`)
-        .join("")
-    : `<p class="hint small">Rolls appear here.</p>`;
+    ? rollLog.map((l, i) => `<div class="logline ${l.tone ?? ""} ${i === 0 ? "latest" : ""} ${i === 0 && freshKey ? "fresh" : ""}"><span class="who">${escapeHtml(l.who)} · ${escapeHtml(l.action)}</span><span class="what">${l.text}</span></div>`).join("")
+    : `<p class="empty">Rolls appear here.</p>`;
 }
+
+const SECTIONS: [Category, string][] = [["action", "Actions"], ["bonus", "Bonus actions"], ["reaction", "Reactions"], ["legendary", "Legendary actions"], ["trait", "Traits"]];
 
 function statBlock(e: BestiaryEntry, c: RosterEntry): string {
   const f = e.forge as Record<string, any>;
-  const actions = (f[F + "Z035"] as { name: string; description: string }[] | undefined) ?? [];
+  const raw = (f[F + "Z035"] as { name: string; description: string }[] | undefined) ?? [];
   const who = c.realName || c.name;
+  const parsed = raw.map((a) => ({ a, p: parseAction(a, c.itemId) }));
+  const card = ({ a, p }: { a: { name: string }; p: ParsedAction }) => `
+    <div class="action ${p.category}">
+      <div class="action-head"><span class="action-name">${escapeHtml(p.title)}</span>${p.dcs.map((d) => `<span class="dc">${escapeHtml(d)}</span>`).join("")}</div>
+      ${p.rolls.length ? `<div class="rolls">${p.rolls.map((r) => rollButtons(r, { itemId: c.itemId, who, action: a.name })).join("")}</div>` : ""}
+      <div class="action-text">${p.text}</div>
+    </div>`;
+  const tactics = parsed.filter((x) => x.p.category === "tactics");
   return `
-    <div class="block">
-      <div class="block-stats">CR ${crText(e.cr)} · AC ${f[F + "Z007"] ?? "–"} · HP ${f[F + "Z005"] ?? "–"} · Speed ${f[F + "Z008"] ?? "–"} ft</div>
-      ${actions.map((a) => `<div class="act"><b>${escapeHtml(a.name)}.</b> ${chips(a.description, { itemId: c.itemId, who, action: a.name })}</div>`).join("")}
-      <div class="hint small">From ${escapeHtml(e.source ?? "the bestiary")}${e.updated ? ` · updated ${escapeHtml(e.updated)}` : ""}</div>
+    <div class="sheet">
+      <div class="vitals">
+        <span><small>CR</small>${crText(e.cr)}</span><span><small>AC</small>${f[F + "Z007"] ?? "–"}</span><span><small>HP</small>${f[F + "Z005"] ?? "–"}</span><span><small>Speed</small>${f[F + "Z008"] ?? "–"} ft</span>
+      </div>
+      ${SECTIONS.map(([cat, label]) => {
+        const items = parsed.filter((x) => x.p.category === cat);
+        return items.length ? `<h3>${label}</h3>${items.map(card).join("")}` : "";
+      }).join("")}
+      ${tactics.map((x) => `<div class="tactics"><b>Tactics.</b> ${x.p.text}</div>`).join("")}
+      <div class="source">From ${escapeHtml(e.source ?? "the bestiary")}${e.updated ? ` · updated ${escapeHtml(e.updated)}` : ""}</div>
     </div>`;
 }
 
 function render() {
   renderLog();
   if (!roster) {
-    app.innerHTML = `<p class="hint">Click "Update Roster" to load the combat list saved from Owlbear.</p>`;
+    app.innerHTML = `<p class="empty">Click "Update Roster" to load the combat list saved from Owlbear.</p>`;
     return;
   }
   if (roster.combatants.length === 0) {
-    app.innerHTML = `<p class="hint">Nobody is on Forge's combat list.</p>`;
+    app.innerHTML = `<p class="empty">Nobody is on Forge's combat list.</p>`;
     return;
   }
   const options = [...bestiary].sort((a, b) => a.name.localeCompare(b.name));
-  app.innerHTML = `<div class="roster">${roster.combatants
+  app.innerHTML = roster.combatants
     .map((c) => {
       const { entry, manual } = entryFor(c);
       const auto = autoMatch(c);
-      const label = c.realName && c.realName !== c.name ? `${escapeHtml(c.realName)} <span class="alias">(${escapeHtml(c.name)})</span>` : escapeHtml(c.name);
+      const isOpen = open.has(c.itemId);
+      const shownName = c.realName || c.name;
+      const alias = c.realName && c.realName !== c.name ? `<span class="alias">shown as ${escapeHtml(c.name)}</span>` : "";
+      const tag = !entry ? `<span class="tag">Party</span>` : manual ? `<span class="tag set">${escapeHtml(entry.name)}</span>` : "";
       return `
-        <div class="combatant" data-id="${escapeHtml(c.itemId)}">
-          <div class="combatant-row">
+        <section class="combatant ${isOpen ? "open" : ""} ${entry ? "" : "party"}" data-id="${escapeHtml(c.itemId)}">
+          <button type="button" class="head" aria-expanded="${isOpen}">
             <span class="init">${c.initiative}</span>
-            <span class="name">${label}</span>
-            <span class="stats">AC ${c.ac ?? "–"}</span>
-            <select class="pick" aria-label="Stat block">
-              <option value="">${auto ? `Auto: ${escapeHtml(auto.name)}` : "No stat block (party member?)"}</option>
-              ${options.map((o) => `<option value="${escapeHtml(o.id)}" ${manual && entry?.id === o.id ? "selected" : ""}>${escapeHtml(o.name)}</option>`).join("")}
-            </select>
-            ${entry ? `<button class="toggle secondary" type="button">${open.has(c.itemId) ? "Hide" : "Stat block"}</button>` : ""}
-          </div>
-          ${entry && open.has(c.itemId) ? statBlock(entry, c) : ""}
-        </div>`;
+            <span class="who"><span class="name">${escapeHtml(shownName)}</span>${alias}</span>
+            ${tag}
+            <span class="ac" title="Armour class"><small>AC</small>${c.ac ?? "–"}</span>
+            <span class="chev" aria-hidden="true"></span>
+          </button>
+          ${isOpen ? `
+            <div class="body">
+              <label class="picker">Stat block
+                <select class="pick">
+                  <option value="">${auto ? `Auto: ${escapeHtml(auto.name)}` : "None (party member)"}</option>
+                  ${options.map((o) => `<option value="${escapeHtml(o.id)}" ${manual && entry?.id === o.id ? "selected" : ""}>${escapeHtml(o.name)}</option>`).join("")}
+                </select>
+              </label>
+              ${entry ? statBlock(entry, c) : `<p class="empty">No stat block. Party members are listed so you can see the turn order; pick an entry above if this token should have one.</p>`}
+            </div>` : ""}
+        </section>`;
     })
-    .join("")}</div>`;
+    .join("");
 
-  app.querySelectorAll<HTMLButtonElement>(".chip").forEach((btn) => btn.addEventListener("click", () => onChip(btn)));
+  app.querySelectorAll<HTMLButtonElement>("button.roll").forEach((b) => b.addEventListener("click", () => onRoll(b)));
   app.querySelectorAll<HTMLElement>(".combatant").forEach((row) => {
     const id = row.dataset.id!;
-    row.querySelector<HTMLSelectElement>(".pick")!.addEventListener("change", (e) => {
+    row.querySelector<HTMLButtonElement>(".head")!.addEventListener("click", () => {
+      if (open.has(id)) open.delete(id);
+      else open.add(id);
+      render();
+    });
+    row.querySelector<HTMLSelectElement>(".pick")?.addEventListener("change", (e) => {
       const v = (e.target as HTMLSelectElement).value;
       if (v) assignments[id] = v;
       else delete assignments[id];
       render();
       persistAssignments();
-    });
-    row.querySelector<HTMLButtonElement>(".toggle")?.addEventListener("click", () => {
-      if (open.has(id)) open.delete(id);
-      else open.add(id);
-      render();
     });
   });
 }
