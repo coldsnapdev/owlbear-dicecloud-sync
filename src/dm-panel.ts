@@ -37,6 +37,8 @@ let bestiary: BestiaryEntry[] = [];
 let spells: Spell[] = [];
 let assignments: Assignments = {};
 const open = new Set<string>(); // itemIds whose stat block is expanded
+const checksOpen = new Set<string>(); // itemIds whose "Saves & checks" drawer is open
+const checkMode = new Map<string, "adv" | "dis">(); // advantage/disadvantage for that token's next save or check
 
 // --- Local settings ------------------------------------------------------------------
 function store(key: string, value?: string) {
@@ -311,7 +313,6 @@ function doDamage(ctx: ActionCtx) {
   const crit = critPending.has(ctx.key); // stays until this action's next to-hit, so every die in a crit doubles
   const rolls = ctx.p.damage.map((d) => ({ d, r: rollExpr(d.expr, { double: crit })! })).filter((x) => x.r);
   if (!rolls.length) return;
-  const verb = ctx.p.hit ? "hits and deals" : "deals";
   lastResult.set(`${ctx.key}|dmg`, `<b>${rolls.map((x) => x.r.total).join(" + ")}</b>${crit ? ` <em class="crit">crit</em>` : ""}`);
   freshKey = `${ctx.key}|dmg`;
   log(
@@ -323,7 +324,7 @@ function doDamage(ctx: ActionCtx) {
     },
     {
       author: { name: ctx.shown },
-      description: `${ctx.shown}'s ${ctx.p.title} ${verb}:\n${rolls.map((x) => `**${x.r.total}** ${x.d.type} damage`).join("\n")}${crit ? "\n*Critical hit: damage dice doubled*" : ""}`,
+      description: `${ctx.shown}'s ${ctx.p.title} deals:\n\n${rolls.map((x) => `**${x.r.total}** ${x.d.type} damage`).join("\n")}${crit ? "\n*Critical hit: damage dice doubled*" : ""}`,
       color: crit ? COLOUR.crit : COLOUR.brass,
     },
   );
@@ -364,6 +365,95 @@ $<HTMLButtonElement>("dice-roll").addEventListener("click", rollBox);
 diceInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") rollBox();
 });
+
+// --- Saves and checks ---------------------------------------------------------------
+const ABILITY_LIST = [
+  { key: "Str", name: "Strength", score: "Z017", save: "Z023" },
+  { key: "Dex", name: "Dexterity", score: "Z018", save: "Z024" },
+  { key: "Con", name: "Constitution", score: "Z019", save: "Z025" },
+  { key: "Int", name: "Intelligence", score: "Z020", save: "Z026" },
+  { key: "Wis", name: "Wisdom", score: "Z021", save: "Z027" },
+  { key: "Cha", name: "Charisma", score: "Z022", save: "Z028" },
+];
+const SKILLS: [string, string][] = [
+  ["Athletics", "Str"],
+  ["Acrobatics", "Dex"], ["Sleight of Hand", "Dex"], ["Stealth", "Dex"],
+  ["Arcana", "Int"], ["History", "Int"], ["Investigation", "Int"], ["Nature", "Int"], ["Religion", "Int"],
+  ["Animal Handling", "Wis"], ["Insight", "Wis"], ["Medicine", "Wis"], ["Perception", "Wis"], ["Survival", "Wis"],
+  ["Deception", "Cha"], ["Intimidation", "Cha"], ["Performance", "Cha"], ["Persuasion", "Cha"],
+];
+
+interface CheckCtx { key: string; itemId: string; dmName: string; shown: string; label: string; post: string; mod: number }
+const checks = new Map<string, CheckCtx>();
+
+const num = (v: unknown): number | undefined => {
+  const n = Number(String(v ?? "").trim());
+  return String(v ?? "").trim() !== "" && Number.isFinite(n) ? n : undefined;
+};
+const fmtMod = (n: number) => (n >= 0 ? `+${n}` : `−${-n}`);
+
+/** Ability mods, saves (never below the plain mod) and skills (listed bonus, else the ability mod). */
+function checkTable(f: Record<string, any>) {
+  const abilities = ABILITY_LIST.map((a) => {
+    const mod = Math.floor(((num(f[F + a.score]) ?? 10) - 10) / 2);
+    const stored = num(f[F + a.save]);
+    const save = Math.max(stored ?? mod, mod);
+    return { ...a, mod, save, saveProf: save > mod };
+  });
+  const listed = new Map<string, number>();
+  for (const m of String(f[F + "Z014"] ?? "").matchAll(/([A-Za-z][A-Za-z ]*?)\s*([+\-−]\s*\d+)/g)) {
+    listed.set(norm(m[1]), Number(m[2].replace("−", "-").replace(/\s+/g, "")));
+  }
+  const skills = SKILLS.map(([name, ab]) => {
+    const base = abilities.find((a) => a.key === ab)!.mod;
+    const own = listed.get(norm(name));
+    return { name, ab, mod: own ?? base, prof: own !== undefined && own !== base };
+  });
+  return { abilities, skills };
+}
+
+function doCheck(c: CheckCtx) {
+  const mode = checkMode.get(c.itemId);
+  checkMode.delete(c.itemId);
+  const r = rollExpr(`1d20${c.mod >= 0 ? "+" : ""}${c.mod}`, { mode });
+  if (!r) return;
+  const d20 = r.kept ?? r.dice[0];
+  const nat = d20 === 20 ? "crit" : d20 === 1 ? "fumble" : undefined;
+  const how = r.kept !== undefined ? `d20 ${r.dice.join(" / ")} ${mode === "adv" ? "with advantage" : "with disadvantage"}${signed(r.mod)}` : `d20 ${d20}${signed(r.mod)}`;
+  const tag = nat === "crit" ? "Natural 20" : nat === "fumble" ? "Natural 1" : "";
+  lastResult.set(c.key, `<b>${r.total}</b>`);
+  freshKey = c.key;
+  log(
+    { who: c.dmName, action: c.label, text: `<span class="big">${r.total}</span> <span class="how">${how}</span>${tag ? ` <em class="${nat}">${tag}</em>` : ""}`, tone: nat },
+    { author: { name: c.shown }, description: `${c.shown} makes ${c.post}:\n\n**${r.total}** (${how})${tag ? ` — **${tag}**` : ""}`, color: nat ? COLOUR[nat] : COLOUR.brass },
+  );
+}
+
+function checksDrawer(f: Record<string, any>, c: RosterEntry): string {
+  const { abilities, skills } = checkTable(f);
+  const dmName = c.realName || c.name;
+  const btn = (id: string, label: string, post: string, mod: number, strong: boolean, text = label) => {
+    const key = `${c.itemId}|chk|${id}`;
+    checks.set(key, { key, itemId: c.itemId, dmName, shown: c.name, label, post, mod });
+    return `<span class="rollgroup"><button type="button" class="chk${strong ? " prof" : ""}" data-chk="${escapeHtml(key)}" title="Roll ${escapeHtml(label)}">${escapeHtml(text)} <b>${fmtMod(mod)}</b></button>${resultSpan(key)}</span>`;
+  };
+  const mode = checkMode.get(c.itemId);
+  const id = escapeHtml(c.itemId);
+  const article = (n: string) => (/^[AEIOU]/.test(n) ? "an" : "a");
+  return `
+    <details class="checks" data-id="${id}" ${checksOpen.has(c.itemId) ? "open" : ""}>
+      <summary>Saves &amp; checks</summary>
+      <div class="chk-mode">Next roll:
+        <span class="seg"><button type="button" class="mode-pick ${!mode ? "on" : ""}" data-id="${id}" data-mode="">Normal</button><button type="button" class="mode-pick ${mode === "adv" ? "on" : ""}" data-id="${id}" data-mode="adv">Adv</button><button type="button" class="mode-pick ${mode === "dis" ? "on" : ""}" data-id="${id}" data-mode="dis">Dis</button></span>
+      </div>
+      <h4>Saving throws</h4>
+      <div class="chk-row">${abilities.map((a) => btn(`save-${a.key}`, `${a.name} save`, `${article(a.name)} ${a.name} saving throw`, a.save, a.saveProf, a.key)).join("")}</div>
+      <h4>Ability checks</h4>
+      <div class="chk-row">${abilities.map((a) => btn(`check-${a.key}`, `${a.name} check`, `${article(a.name)} ${a.name} check`, a.mod, false, a.key)).join("")}</div>
+      <h4>Skills</h4>
+      <div class="chk-row skills">${skills.map((s) => btn(`skill-${s.name}`, s.name, `${article(ABILITY_LIST.find((a) => a.key === s.ab)!.name)} ${ABILITY_LIST.find((a) => a.key === s.ab)!.name} (${s.name}) check`, s.mod, s.prof)).join("")}</div>
+    </details>`;
+}
 
 // --- Rendering -------------------------------------------------------------------------
 const crText = (c?: number) => (c === undefined ? "–" : c === 0.125 ? "1/8" : c === 0.25 ? "1/4" : c === 0.5 ? "1/2" : String(c));
@@ -413,6 +503,7 @@ function statBlock(e: BestiaryEntry, c: RosterEntry): string {
       <div class="vitals">
         <span><small>CR</small>${crText(e.cr)}</span><span><small>AC</small>${f[F + "Z007"] ?? "–"}</span><span><small>HP</small>${f[F + "Z005"] ?? "–"}</span><span><small>Speed</small>${f[F + "Z008"] ?? "–"} ft</span>
       </div>
+      ${checksDrawer(f, c)}
       ${SECTIONS.map(([cat, label]) => {
         const items = ctxs.filter((x) => x.p.category === cat);
         return items.length ? `<h3>${label}</h3>${items.map(card).join("")}` : "";
@@ -437,6 +528,7 @@ function renderLog() {
 function render() {
   renderLog();
   actions.clear();
+  checks.clear();
   if (!roster) {
     app.innerHTML = `<p class="empty">Click "Update Roster" to load the combat list saved from Owlbear.</p>`;
     freshKey = undefined;
@@ -488,6 +580,26 @@ function render() {
       else if (op === "use") doUse(ctx);
       else if (op === "dmg") doDamage(ctx);
       else if (op === "extra") doExtra(ctx, Number(b.dataset.i));
+    }),
+  );
+  app.querySelectorAll<HTMLButtonElement>("button.chk").forEach((b) =>
+    b.addEventListener("click", () => {
+      const c = checks.get(b.dataset.chk!);
+      if (c) doCheck(c);
+    }),
+  );
+  app.querySelectorAll<HTMLButtonElement>("button.mode-pick").forEach((b) =>
+    b.addEventListener("click", () => {
+      const m = b.dataset.mode as "adv" | "dis" | "";
+      if (m) checkMode.set(b.dataset.id!, m);
+      else checkMode.delete(b.dataset.id!);
+      render();
+    }),
+  );
+  app.querySelectorAll<HTMLDetailsElement>("details.checks").forEach((d) =>
+    d.addEventListener("toggle", () => {
+      if (d.open) checksOpen.add(d.dataset.id!);
+      else checksOpen.delete(d.dataset.id!);
     }),
   );
   app.querySelectorAll<HTMLElement>(".combatant").forEach((row) => {

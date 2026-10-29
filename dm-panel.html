@@ -105,6 +105,26 @@
       .action.trait .action-text { display: inline; margin-left: 6px; }
       .action.trait .action-head { display: inline; }
       .dice { color: var(--ink); font-weight: 600; }
+      .checks { margin: 10px 0 4px; border: 1px solid var(--line); border-radius: 6px; padding: 0 12px; }
+      .checks summary { cursor: pointer; padding: 9px 0; font: 600 12px/1 Cinzel, serif; letter-spacing: .08em; color: var(--brass); list-style: none; }
+      .checks summary::-webkit-details-marker { display: none; }
+      .checks summary::before { content: "▸ "; color: var(--ink-faint); }
+      .checks[open] summary::before { content: "▾ "; }
+      .checks[open] { padding-bottom: 10px; }
+      .checks h4 { margin: 10px 0 6px; font: 600 11px/1 Cinzel, serif; letter-spacing: .08em; color: var(--ink-faint); text-transform: uppercase; }
+      .chk-row { display: flex; flex-wrap: wrap; gap: 6px 10px; }
+      .chk { padding: 5px 9px; border-radius: 6px; background: transparent; border: 1px solid var(--line); color: var(--ink-soft); font: inherit; font-size: 13px; cursor: pointer; }
+      .chk b { color: var(--ink); font-weight: 600; margin-left: 2px; }
+      .chk.prof { border-color: var(--brass-deep); color: var(--ink); }
+      .chk.prof b { color: var(--brass); }
+      .chk:hover { border-color: var(--brass); color: var(--ink); }
+      .chk:active { transform: translateY(1px); }
+      .chk-mode { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-faint); }
+      .mode-pick { padding: 4px 9px; font-size: 12px; background: transparent; border: 1px solid var(--line); color: var(--ink-soft); cursor: pointer; border-radius: 0; }
+      .mode-pick:first-child { border-radius: 6px 0 0 6px; }
+      .mode-pick:last-child { border-radius: 0 6px 6px 0; }
+      .mode-pick + .mode-pick { border-left: 0; }
+      .mode-pick.on { background: rgba(201,162,94,.16); color: var(--brass); border-color: var(--brass-deep); }
       .tactics { margin-top: 14px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 6px; color: var(--ink-soft); font-style: italic; }
       .source { margin-top: 12px; font-size: 13px; color: var(--ink-faint); font-style: italic; }
 
