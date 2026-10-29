@@ -176,8 +176,10 @@ function categorise(name: string): { category: Category; title: string } {
   return { category: "action", title: name };
 }
 
-function parseAction(a: { name: string; description: string }): ParsedAction {
-  const { category, title } = categorise(a.name);
+function parseAction(a: { name: string; description: string }, forced?: Category): ParsedAction {
+  const cat = categorise(a.name);
+  const category = forced && cat.category !== "tactics" ? forced : cat.category;
+  const title = forced && forced !== "action" ? cat.title.replace(/^(trait|bonus action|reaction|legendary( action)?):\s*/i, "") : cat.title;
   const p: ParsedAction = { title, category, damage: [], extras: [], dcs: [], text: "", plain: "" };
   const re = /\[([^\]]+)\]\s*([A-Za-z]+)?/g;
   let m: RegExpExecArray | null;
@@ -429,6 +431,12 @@ function doCheck(c: CheckCtx) {
   );
 }
 
+function defences(f: Record<string, any>): string {
+  const rows: [string, string][] = [["Z030", "Vulnerable"], ["Z031", "Resists"], ["Z032", "Immune"], ["Z033", "Condition immunities"], ["Z013", "Senses"], ["Z041", "Notes"]];
+  const items = rows.filter(([k]) => String(f[F + k] ?? "").trim()).map(([k, label]) => `<div><b>${label}</b> ${escapeHtml(String(f[F + k]))}</div>`);
+  return items.length ? `<div class="defences">${items.join("")}</div>` : "";
+}
+
 function checksDrawer(f: Record<string, any>, c: RosterEntry): string {
   const { abilities, skills } = checkTable(f);
   const dmName = c.realName || c.name;
@@ -486,9 +494,12 @@ const SECTIONS: [Category, string][] = [["action", "Actions"], ["bonus", "Bonus 
 
 function statBlock(e: BestiaryEntry, c: RosterEntry): string {
   const f = e.forge as Record<string, any>;
-  const raw = (f[F + "Z035"] as { name: string; description: string }[] | undefined) ?? [];
-  const ctxs = raw.map((a, i) => {
-    const ctx: ActionCtx = { key: `${c.itemId}#${i}`, itemId: c.itemId, dmName: c.realName || c.name, shown: c.name, entry: e, raw: a, p: parseAction(a) };
+  // Forge keeps traits (Z034), actions (Z035), bonus actions (Z036), reactions (Z037) and
+  // legendary actions (Z038) in separate lists; some blocks put everything in Z035 with prefixes.
+  const lists: [string, Category | undefined][] = [["Z034", "trait"], ["Z035", undefined], ["Z036", "bonus"], ["Z037", "reaction"], ["Z038", "legendary"]];
+  const raw = lists.flatMap(([k, cat]) => ((f[F + k] as { name: string; description: string }[] | undefined) ?? []).map((a) => ({ a, cat })));
+  const ctxs = raw.map(({ a, cat }, i) => {
+    const ctx: ActionCtx = { key: `${c.itemId}#${i}`, itemId: c.itemId, dmName: c.realName || c.name, shown: c.name, entry: e, raw: a, p: parseAction(a, cat) };
     actions.set(ctx.key, ctx);
     return ctx;
   });
@@ -503,6 +514,7 @@ function statBlock(e: BestiaryEntry, c: RosterEntry): string {
       <div class="vitals">
         <span><small>CR</small>${crText(e.cr)}</span><span><small>AC</small>${f[F + "Z007"] ?? "–"}</span><span><small>HP</small>${f[F + "Z005"] ?? "–"}</span><span><small>Speed</small>${f[F + "Z008"] ?? "–"} ft</span>
       </div>
+      ${defences(f)}
       ${checksDrawer(f, c)}
       ${SECTIONS.map(([cat, label]) => {
         const items = ctxs.filter((x) => x.p.category === cat);
