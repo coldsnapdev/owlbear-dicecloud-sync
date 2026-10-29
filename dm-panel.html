@@ -44,6 +44,19 @@
         cursor: pointer;
       }
       button:disabled { opacity: 0.6; cursor: default; }
+      button.secondary { background: transparent; color: var(--brass); padding: 4px 10px; font-size: 12px; }
+      .roster { max-width: 860px; }
+      .combatant { border: 1px solid var(--line); border-radius: 6px; background: white; margin-bottom: 8px; }
+      .combatant .combatant-row { border: none; background: transparent; align-items: center; flex-wrap: wrap; }
+      .alias { color: var(--ink-soft); font-weight: 400; font-size: 13px; }
+      .pick { font-size: 13px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: var(--ink); max-width: 220px; }
+      .block { padding: 4px 14px 12px 50px; border-top: 1px solid var(--line); }
+      .block-stats { font-size: 13px; color: var(--ink-soft); margin: 8px 0; }
+      .act { font-size: 14px; padding: 4px 0; }
+      .hint.small { font-size: 12px; margin: 8px 0 0; }
+      .settings { margin-top: 24px; max-width: 640px; }
+      .settings summary { cursor: pointer; color: var(--ink-soft); font-size: 13px; }
+      .settings input { flex: 1; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; font-size: 13px; background: transparent; color: var(--ink); }
       .roster { display: flex; flex-direction: column; gap: 8px; max-width: 640px; }
       .combatant-row {
         display: flex;
@@ -71,6 +84,7 @@
           --line: #2b323a;
         }
         .combatant-row { background: #1b222b; }
+        .combatant { background: #1b222b; }
       }
     </style>
   </head>
@@ -81,6 +95,15 @@
       <span id="roster-meta" class="hint"></span>
     </div>
     <div id="app"></div>
+    <details class="settings">
+      <summary>Settings</summary>
+      <p class="hint">GitHub token (fine-grained, owlbear-dicecloud-sync repo, Contents: read and write), so stat block choices are saved for every device. Kept only in this browser.</p>
+      <div class="toolbar">
+        <input id="gh-token" type="password" autocomplete="off" />
+        <button id="save-gh-token" type="button">Save token</button>
+      </div>
+      <p id="token-status" class="hint"></p>
+    </details>
     <script type="module" src="/src/dm-panel.ts"></script>
   </body>
 </html>

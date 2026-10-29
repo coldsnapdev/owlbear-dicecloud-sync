@@ -25,6 +25,8 @@ const STATUS_KEY = "dicecloud-sync/mailbox-status";
 export interface RosterEntry {
   itemId: string;
   name: string;
+  /** Real name from the Abelon Namer, when the token is disguised. */
+  realName?: string;
   initiative: number;
   ac?: number;
 }
@@ -67,7 +69,7 @@ function setMailboxStatus(status: MailboxStatus) {
 }
 
 export function toRosterEntries(combatants: Combatant[]): RosterEntry[] {
-  return combatants.map((c) => ({ itemId: c.itemId, name: c.name, initiative: c.initiative, ac: c.ac }));
+  return combatants.map((c) => ({ itemId: c.itemId, name: c.name, realName: c.realName, initiative: c.initiative, ac: c.ac }));
 }
 
 /** Fingerprint of exactly what the panel shows — HP changes deliberately don't count. */
@@ -144,4 +146,76 @@ export async function loadRoster(): Promise<RosterFile> {
   if (!r.ok) throw new Error(`GitHub returned ${r.status}`);
   const j = await r.json();
   return JSON.parse(decode(j.content)) as RosterFile;
+}
+
+// --- Stat block assignments -------------------------------------------------
+// Per-token overrides chosen in the DM panel ("this token uses Tav's stat
+// block"), keyed by Owlbear item id. Stored next to the roster so every device
+// sees the same choices. Written by the panel, which needs its own token.
+export const ASSIGNMENTS_PATH = "assignments.json";
+const ASSIGNMENTS_URL = `https://api.github.com/repos/${REPO}/contents/${ASSIGNMENTS_PATH}`;
+
+export type Assignments = Record<string, string>; // itemId -> bestiary entry id
+
+function headers(token?: string): Record<string, string> {
+  const h: Record<string, string> = { Accept: "application/vnd.github+json" };
+  if (token) h.Authorization = `Bearer ${token}`;
+  return h;
+}
+
+async function readJson<T>(url: string, token?: string): Promise<{ data: T; sha: string } | undefined> {
+  const r = await fetch(`${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`, { headers: headers(token), cache: "no-store" });
+  if (r.status === 404) return undefined;
+  if (!r.ok) throw new Error(`GitHub returned ${r.status}`);
+  const j = await r.json();
+  return { data: JSON.parse(decode(j.content)) as T, sha: j.sha };
+}
+
+export async function loadRosterWith(token?: string): Promise<RosterFile> {
+  const res = await readJson<RosterFile>(`${API_URL}?ref=${BRANCH}`, token);
+  return res?.data ?? { savedAt: null, combatants: [] };
+}
+
+export async function loadAssignments(token?: string): Promise<Assignments> {
+  const res = await readJson<Assignments>(`${ASSIGNMENTS_URL}?ref=${BRANCH}`, token);
+  return res?.data ?? {};
+}
+
+export async function saveAssignments(assignments: Assignments, token: string): Promise<void> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const current = await readJson<Assignments>(`${ASSIGNMENTS_URL}?ref=${BRANCH}`, token);
+    const r = await fetch(ASSIGNMENTS_URL, {
+      method: "PUT",
+      headers: { ...headers(token), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: "Stat block assignments",
+        branch: BRANCH,
+        content: encode(JSON.stringify(assignments, null, 1) + "\n"),
+        ...(current ? { sha: current.sha } : {}),
+      }),
+    });
+    if (r.status === 409 || r.status === 422) continue;
+    if (!r.ok) throw new Error(`save ${r.status}`);
+    return;
+  }
+  throw new Error("save conflict");
+}
+
+// --- Bestiary ----------------------------------------------------------------
+// One current stat block per NPC/creature, kept in the DM manual repo
+// (coldsnapdev/abelon-manual, bestiary.json). Each entry carries Forge JSON.
+const BESTIARY_URL = "https://api.github.com/repos/coldsnapdev/abelon-manual/contents/bestiary.json?ref=main";
+
+export interface BestiaryEntry {
+  id: string;
+  name: string;
+  cr?: number;
+  source?: string;
+  updated?: string;
+  forge: Record<string, unknown>;
+}
+
+export async function loadBestiary(token?: string): Promise<BestiaryEntry[]> {
+  const res = await readJson<{ entries: BestiaryEntry[] }>(BESTIARY_URL, token);
+  return res?.data.entries ?? [];
 }

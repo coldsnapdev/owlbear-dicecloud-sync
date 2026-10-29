@@ -104,10 +104,17 @@ export function isOnCombatList(metadata: Record<string, unknown>): boolean {
   return FORGE_KEYS.onList in metadata;
 }
 
+// The Abelon Namer extension keeps a disguised token's real name here
+// ({ realName, placeholder, hidden }), so the DM panel can match the right
+// bestiary entry even while players see "Male Human 3".
+const NAMER_KEY = "com.abelon.namer/data";
+
 export interface Combatant {
   itemId: string;
   /** Forge's own tracked name for this combatant — falls back to the item's own name if absent. */
   name: string;
+  /** The real name stored by the Abelon Namer when the token is showing a placeholder. */
+  realName?: string;
   initiative: number;
   currentHP?: number;
   maxHP?: number;
@@ -127,9 +134,11 @@ export function getCombatRoster(items: Item[]): Combatant[] {
       const stats = readForgeStats(item.metadata);
       const name = (item.metadata[FORGE_KEYS.name] as string | undefined) ?? item.name;
       const initiative = Number(item.metadata[FORGE_KEYS.init] ?? 0);
+      const namer = item.metadata[NAMER_KEY] as { realName?: string } | undefined;
       return {
         itemId: item.id,
         name,
+        realName: namer?.realName || undefined,
         initiative: Number.isFinite(initiative) ? initiative : 0,
         currentHP: numberOrUndefined(stats.currentHP),
         maxHP: numberOrUndefined(stats.maxHP),
