@@ -213,6 +213,28 @@ export interface BestiaryEntry {
   source?: string;
   updated?: string;
   forge: Record<string, unknown>;
+  /** Optional flavour lines per action name (as in Forge's Z035). "{name}" is replaced with the token's visible name. */
+  flavour?: Record<string, string[]>;
+}
+
+// --- Spells -------------------------------------------------------------------------
+// Full rules text for spells NPCs cast, kept beside the bestiary in the DM
+// manual (spells.json). Most come from the 2024 SRD (CC BY 4.0).
+const SPELLS_URL = "https://api.github.com/repos/coldsnapdev/abelon-manual/contents/spells.json?ref=main";
+
+export interface Spell {
+  name: string;
+  level: string; // e.g. "Level 2 Enchantment" or "Evocation Cantrip"
+  castingTime: string;
+  range: string;
+  components: string;
+  duration: string;
+  text: string;
+}
+
+export async function loadSpells(token?: string): Promise<Spell[]> {
+  const res = await readJson<{ spells: Spell[] }>(SPELLS_URL, token);
+  return res?.data.spells ?? [];
 }
 
 export async function loadBestiary(token?: string): Promise<BestiaryEntry[]> {

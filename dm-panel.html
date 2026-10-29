@@ -160,12 +160,49 @@
       .logline.crit { border-left-color: var(--verdigris); }
       .logline.fumble { border-left-color: var(--blood); }
 
+      /* Public/private switch */
+      .switch { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; color: var(--ink-soft); user-select: none; }
+      .switch input { position: absolute; opacity: 0; pointer-events: none; }
+      .track { width: 42px; height: 24px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); position: relative; transition: background .15s; }
+      .knob { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--ink-faint); transition: transform .15s, background .15s; }
+      .switch input:checked + .track { background: rgba(95,179,155,.25); border-color: var(--verdigris); }
+      .switch input:checked + .track .knob { transform: translateX(18px); background: var(--verdigris); }
+      .switch input:focus-visible + .track { outline: 2px solid var(--brass); outline-offset: 2px; }
+      body.private header h1::after { content: " · private"; color: var(--blood); font-size: 12px; letter-spacing: .1em; }
+
+      /* Dice box */
+      .dicebox { display: flex; gap: 8px; }
+      .dicebox input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); font: 600 16px "Crimson Pro", serif; }
+      .dicebox input.bad { border-color: var(--blood); }
+      #dice-roll { padding: 8px 14px; border-radius: 6px; cursor: pointer; color: #1b140c; border: 1px solid #f0d49a; background: linear-gradient(180deg, #e2bf7c, var(--brass) 60%, var(--brass-deep)); font: 600 12px/1 Cinzel, serif; letter-spacing: .06em; }
+      .check { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; color: var(--ink-soft); margin: 6px 0 16px; cursor: pointer; }
+      .logline .st { color: var(--blood); letter-spacing: .04em; }
+
+      /* New action buttons */
+      .roll.use { background: transparent; color: var(--brass); border: 1px solid var(--brass-deep); font-family: Cinzel, serif; font-size: 12px; letter-spacing: .06em; }
+      .roll.use:hover { background: rgba(201,162,94,.12); }
+      .roll.dmg { --c: var(--copper); }
+      .roll.dmg .parts { font-weight: 400; color: var(--ink-soft); margin-left: 6px; }
+      .roll.extra { background: transparent; border: 1px dashed var(--line); color: var(--ink-soft); }
+      .roll.extra:hover { color: var(--ink); border-color: var(--brass-deep); }
+      i.t-piercing, i.t-slashing, i.t-bludgeoning { color: var(--copper); font-style: normal; }
+      i.t-poison, i.t-acid { color: var(--poison); font-style: normal; }
+      i.t-necrotic { color: #8e7bb5; font-style: normal; }
+      i.t-fire { color: #e0773f; font-style: normal; }
+      i.t-cold { color: #7fb7d8; font-style: normal; }
+      i.t-radiant { color: #e8d27a; font-style: normal; }
+      i.t-psychic, i.t-force { color: var(--arcane); font-style: normal; }
+      i.t-lightning, i.t-thunder { color: #7f9bd8; font-style: normal; }
+      i.t-healing { color: var(--verdigris); font-style: normal; }
+      .spell-tag, .flav-tag { font: 500 10px/1 Cinzel, serif; letter-spacing: .1em; text-transform: uppercase; padding: 4px 7px; border-radius: 999px; border: 1px solid var(--arcane); color: var(--arcane); }
+      .flav-tag { border-color: var(--brass-deep); color: var(--brass); }
+
       /* Settings */
       .settings { margin-top: 28px; max-width: 640px; color: var(--ink-soft); font-size: 14px; }
       .settings summary { cursor: pointer; font: 500 11px/1 Cinzel, serif; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }
       .settings .row { display: flex; gap: 10px; margin: 8px 0; }
       .settings input { flex: 1; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; font: 14px "Crimson Pro", serif; background: var(--panel-2); color: var(--ink); }
-      #save-gh-token { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--brass-deep); background: transparent; color: var(--brass); cursor: pointer; font: 600 11px/1 Cinzel, serif; letter-spacing: .08em; text-transform: uppercase; }
+      #save-webhook, #save-gh-token { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--brass-deep); background: transparent; color: var(--brass); cursor: pointer; font: 600 11px/1 Cinzel, serif; letter-spacing: .08em; text-transform: uppercase; }
       .hint { margin: 4px 0; }
     </style>
   </head>
@@ -175,10 +212,24 @@
         <h1>Combat</h1>
         <button id="update-roster" type="button">Update Roster</button>
         <span id="roster-meta"></span>
+        <label class="switch" title="Public rolls post to Discord; private rolls stay in this panel">
+          <input id="public-toggle" type="checkbox" checked />
+          <span class="track"><span class="knob"></span></span>
+          <span id="public-label">Public</span>
+        </label>
       </header>
       <div class="layout">
         <main id="app"></main>
-        <aside><h2>Rolls</h2><div id="roll-log"></div></aside>
+        <aside>
+          <h2>Dice</h2>
+          <div class="dicebox">
+            <input id="dice-input" type="text" placeholder="3d6+4" autocomplete="off" spellcheck="false" />
+            <button id="dice-roll" type="button">Roll</button>
+          </div>
+          <label class="check"><input id="dice-private" type="checkbox" /> Private</label>
+          <h2>Rolls</h2>
+          <div id="roll-log"></div>
+        </aside>
       </div>
       <details class="settings">
         <summary>Settings</summary>
@@ -186,6 +237,11 @@
         <div class="row">
           <input id="gh-token" type="password" autocomplete="off" />
           <button id="save-gh-token" type="button">Save token</button>
+        </div>
+        <p class="hint">Discord webhook for the channel rolls should post to (Channel settings → Integrations → Webhooks). Kept only in this browser, never in GitHub.</p>
+        <div class="row">
+          <input id="discord-webhook" type="password" autocomplete="off" />
+          <button id="save-webhook" type="button">Save webhook</button>
         </div>
         <p id="token-status" class="hint"></p>
       </details>
