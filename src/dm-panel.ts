@@ -29,9 +29,15 @@ let bestiary: BestiaryEntry[] = [];
 let assignments: Assignments = {};
 const open = new Set<string>(); // itemIds whose stat block is expanded
 
+// The DM manual (coldsnapdev.github.io/abelon-manual) lives on the same origin
+// as this panel, so it shares localStorage. If the manual's sync is already
+// connected in this browser, reuse its token rather than asking again (it
+// works as long as that token's repository access includes this repo).
+const MANUAL_TOKEN_KEY = "abelonSyncToken";
+
 function getToken(): string | undefined {
   try {
-    return localStorage.getItem(TOKEN_KEY) || undefined;
+    return localStorage.getItem(TOKEN_KEY) || localStorage.getItem(MANUAL_TOKEN_KEY) || undefined;
   } catch {
     return undefined;
   }
@@ -40,7 +46,9 @@ function getToken(): string | undefined {
 function renderTokenStatus() {
   const has = !!getToken();
   tokenInput.placeholder = has ? "•••••••• (saved)" : "GitHub token";
-  tokenStatus.textContent = has ? "Stat block choices are saved for every device." : "Without a token, stat block choices can't be saved.";
+  tokenStatus.textContent = has
+    ? "Token found: stat block choices are saved for every device. You won't be asked again in this browser."
+    : "Without a token, stat block choices can't be saved. You only need to enter it once per browser.";
   tokenStatus.className = has ? "hint" : "hint warn";
 }
 
