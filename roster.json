@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-10-29T12:17:20.219Z",
+ "savedAt": "2026-10-29T12:18:14.302Z",
  "combatants": [
   {
    "itemId": "f1bdb335-d08e-4bfc-9a71-247a12609177",
@@ -39,6 +39,16 @@
    "realName": "Rot Skulker 4",
    "initiative": 5,
    "ac": 10
+  },
+  {
+   "itemId": "0ca300c3-9fd8-4017-923f-2ab85b976457",
+   "name": "Idony",
+   "initiative": 0
+  },
+  {
+   "itemId": "7aa6256d-b943-47ca-87a1-aebff92c5855",
+   "name": "Radek",
+   "initiative": 0
   }
  ]
 }
