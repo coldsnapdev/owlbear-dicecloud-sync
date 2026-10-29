@@ -1,54 +1,40 @@
 {
- "savedAt": "2026-10-29T12:30:40.730Z",
+ "savedAt": "2026-10-29T12:31:08.171Z",
  "combatants": [
   {
-   "itemId": "f1bdb335-d08e-4bfc-9a71-247a12609177",
+   "itemId": "1ddd4801-9d63-4950-ab1c-1c3a5f1ef42e",
+   "name": "Arjay",
+   "realName": "Arjay",
+   "initiative": 0,
+   "ac": 18
+  },
+  {
+   "itemId": "6940ddaf-752d-480c-9ffa-91b46b8b2607",
    "name": "An",
    "realName": "An",
-   "initiative": 21,
+   "initiative": 0,
    "ac": 16
   },
   {
-   "itemId": "ec8eb598-5897-4d19-ae1e-203e1a70d22b",
-   "name": "Danzel",
-   "realName": "Danzel",
-   "initiative": 18,
+   "itemId": "c3f3d29d-0f36-42cb-b644-a58fe175e50d",
+   "name": "Tenok",
+   "realName": "Tenok",
+   "initiative": 0,
    "ac": 16
   },
   {
-   "itemId": "d4fe1d5b-b95f-48a1-8649-fd547b172fc6",
+   "itemId": "e233d53c-49e8-4dc6-bc12-48fedc23bd19",
    "name": "Wren",
-   "initiative": 17,
+   "realName": "Wren",
+   "initiative": 0,
    "ac": 11
   },
   {
-   "itemId": "2de15995-ebe1-42c0-99b0-16c216518b05",
+   "itemId": "b322e35e-9ade-4455-a362-b4c017fda369",
    "name": "Jenok",
-   "initiative": 13,
+   "realName": "Jenok",
+   "initiative": 0,
    "ac": 15
-  },
-  {
-   "itemId": "4de430d6-8454-446f-84b4-f0b04b8a178b",
-   "name": "Tenok",
-   "initiative": 6,
-   "ac": 16
-  },
-  {
-   "itemId": "8367561a-6dcc-4e83-a0ca-f90c3a66c604",
-   "name": "Rot Skulker 4",
-   "realName": "Rot Skulker 4",
-   "initiative": 5,
-   "ac": 10
-  },
-  {
-   "itemId": "7aa6256d-b943-47ca-87a1-aebff92c5855",
-   "name": "Radek",
-   "initiative": 0
-  },
-  {
-   "itemId": "0ca300c3-9fd8-4017-923f-2ab85b976457",
-   "name": "Idony",
-   "initiative": 0
   }
  ]
 }
