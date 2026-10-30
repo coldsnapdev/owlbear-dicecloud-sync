@@ -277,9 +277,47 @@ async function log(line: LogLine, embed: Embed, privateRoll = !isPublic()) {
   renderLog();
 }
 
+// --- Recharge ------------------------------------------------------------------------
+// "Recharge 5-6" abilities are spent when used and come back on a d6 roll at the start
+// of the creature's turn. Spent state survives a panel reload (per browser).
+const RECHARGE_KEY = "dm-panel/recharge-spent";
+const spent = new Set<string>(JSON.parse(read(RECHARGE_KEY) || "[]") as string[]);
+const saveSpent = () => store(RECHARGE_KEY, spent.size ? JSON.stringify([...spent]) : undefined);
+const spentKey = (ctx: ActionCtx) => `${ctx.itemId}|${ctx.raw.name}`;
+function rechargeMin(name: string): number | undefined {
+  const m = name.match(/recharge\s*(\d)(?:\s*[–-]\s*\d)?/i);
+  return m ? Number(m[1]) : undefined;
+}
+function markUsed(ctx: ActionCtx) {
+  if (rechargeMin(ctx.raw.name) === undefined) return;
+  spent.add(spentKey(ctx));
+  saveSpent();
+}
+function doRecharge(ctx: ActionCtx) {
+  const min = rechargeMin(ctx.raw.name)!;
+  const d = randInt(6);
+  const back = d >= min;
+  if (back) spent.delete(spentKey(ctx));
+  saveSpent();
+  lastResult.set(`${ctx.key}|rc`, `<b>${d}</b> ${back ? `<em class="crit">ready</em>` : "still spent"}`);
+  freshKey = `${ctx.key}|rc`;
+  log(
+    { who: ctx.dmName, action: ctx.p.title, text: `<span class="big">${d}</span> recharge <span class="how">needs ${min}+</span> ${back ? `<em class="crit">Ready</em>` : "Still spent"}`, tone: back ? "crit" : undefined },
+    { description: "" },
+    true, // recharge rolls are the DM's business
+  );
+}
+function setReady(ctx: ActionCtx) {
+  spent.delete(spentKey(ctx));
+  saveSpent();
+  lastResult.delete(`${ctx.key}|rc`);
+  render();
+}
+
 function doAttack(ctx: ActionCtx, mode?: "adv" | "dis") {
   const r = rollExpr(ctx.p.hit!.expr, { mode });
   if (!r) return;
+  markUsed(ctx);
   const d20 = r.kept ?? r.dice[0];
   const nat = d20 === 20 ? "crit" : d20 === 1 ? "fumble" : undefined;
   if (nat === "crit") critPending.add(ctx.key);
@@ -300,6 +338,7 @@ function doAttack(ctx: ActionCtx, mode?: "adv" | "dis") {
 }
 
 function doUse(ctx: ActionCtx) {
+  markUsed(ctx);
   lastResult.set(`${ctx.key}|use`, `<em>posted</em>`);
   freshKey = `${ctx.key}|use`;
   const dcs = ctx.p.dcs.length ? `\n\n**${ctx.p.dcs.join(" · ")}**` : "";
@@ -475,11 +514,19 @@ function rollRow(ctx: ActionCtx): string {
   const p = ctx.p;
   const k = escapeHtml(ctx.key);
   const parts: string[] = [];
+  const min = rechargeMin(ctx.raw.name);
+  const isSpent = min !== undefined && spent.has(spentKey(ctx));
+  const off = isSpent ? ` disabled title="Spent: roll to recharge"` : "";
   if (p.hit) {
     const sign = p.hit.mod >= 0 ? "+" : "−";
-    parts.push(`<span class="rollgroup"><button type="button" class="roll hit" data-act="${k}" data-op="hit" title="Roll to hit and post the attack">Attack ${sign}${Math.abs(p.hit.mod)}</button><span class="seg"><button type="button" class="roll mode" data-act="${k}" data-op="hit" data-mode="adv" title="Roll with advantage">Adv</button><button type="button" class="roll mode" data-act="${k}" data-op="hit" data-mode="dis" title="Roll with disadvantage">Dis</button></span>${resultSpan(`${ctx.key}|hit`)}</span>`);
+    parts.push(`<span class="rollgroup"><button type="button" class="roll hit" data-act="${k}" data-op="hit"${off || ` title="Roll to hit and post the attack"`}>Attack ${sign}${Math.abs(p.hit.mod)}</button><span class="seg"><button type="button" class="roll mode" data-act="${k}" data-op="hit" data-mode="adv"${off || ` title="Roll with advantage"`}>Adv</button><button type="button" class="roll mode" data-act="${k}" data-op="hit" data-mode="dis"${off || ` title="Roll with disadvantage"`}>Dis</button></span>${resultSpan(`${ctx.key}|hit`)}</span>`);
   } else if (p.category !== "trait" && p.category !== "tactics") {
-    parts.push(`<span class="rollgroup"><button type="button" class="roll use" data-act="${k}" data-op="use" title="Post this action's description to Discord">${spellFor(p.title) ? "Cast" : "Use"}</button>${resultSpan(`${ctx.key}|use`)}</span>`);
+    parts.push(`<span class="rollgroup"><button type="button" class="roll use" data-act="${k}" data-op="use"${off || ` title="Post this action's description to Discord"`}>${spellFor(p.title) ? "Cast" : "Use"}</button>${resultSpan(`${ctx.key}|use`)}</span>`);
+  }
+  if (min !== undefined) {
+    parts.push(isSpent
+      ? `<span class="rollgroup"><span class="rc-tag spent">Spent</span><button type="button" class="roll recharge" data-act="${k}" data-op="recharge" title="Roll a d6 privately at the start of its turn">Recharge ${min}–6</button><button type="button" class="roll ready" data-act="${k}" data-op="ready" title="Mark ready without rolling">Ready</button>${resultSpan(`${ctx.key}|rc`)}</span>`
+      : `<span class="rollgroup"><span class="rc-tag">Ready</span>${resultSpan(`${ctx.key}|rc`)}</span>`);
   }
   if (p.damage.length) {
     parts.push(`<span class="rollgroup"><button type="button" class="roll dmg" data-act="${k}" data-op="dmg" title="Roll all damage">Damage <span class="parts">${p.damage.map((d) => `${escapeHtml(d.expr)} <i class="t-${d.type}">${d.type}</i>`).join(" · ")}</span></button>${resultSpan(`${ctx.key}|dmg`)}</span>`);
@@ -592,6 +639,8 @@ function render() {
       else if (op === "use") doUse(ctx);
       else if (op === "dmg") doDamage(ctx);
       else if (op === "extra") doExtra(ctx, Number(b.dataset.i));
+      else if (op === "recharge") doRecharge(ctx);
+      else if (op === "ready") setReady(ctx);
     }),
   );
   app.querySelectorAll<HTMLButtonElement>("button.chk").forEach((b) =>

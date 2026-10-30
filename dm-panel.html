@@ -201,6 +201,12 @@
       .logline .st { color: var(--blood); letter-spacing: .04em; }
 
       /* New action buttons */
+      .roll[disabled] { opacity: .35; cursor: not-allowed; filter: grayscale(.6); }
+      .roll.recharge { background: transparent; color: var(--ink); border: 1px dashed var(--brass); font-family: Cinzel, serif; font-size: 12px; letter-spacing: .06em; }
+      .roll.recharge:hover { background: rgba(201,162,94,.12); }
+      .roll.ready { background: transparent; color: var(--ink-faint); border: 1px solid var(--line); font-size: 12px; padding: 5px 8px; }
+      .rc-tag { font: 600 10px/1 Cinzel, serif; letter-spacing: .08em; text-transform: uppercase; padding: 4px 7px; border-radius: 4px; color: #5fb39b; border: 1px solid rgba(95,179,155,.45); }
+      .rc-tag.spent { color: #c0614a; border-color: rgba(192,97,74,.5); }
       .roll.use { background: transparent; color: var(--brass); border: 1px solid var(--brass-deep); font-family: Cinzel, serif; font-size: 12px; letter-spacing: .06em; }
       .roll.use:hover { background: rgba(201,162,94,.12); }
       .roll.dmg { --c: var(--copper); }
