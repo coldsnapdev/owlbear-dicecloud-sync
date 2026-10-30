@@ -241,3 +241,59 @@ export async function loadBestiary(token?: string): Promise<BestiaryEntry[]> {
   const res = await readJson<{ entries: BestiaryEntry[] }>(BESTIARY_URL, token);
   return res?.data.entries ?? [];
 }
+
+// --- Statuses -----------------------------------------------------------------------
+// Conditions set in the DM panel, keyed by Owlbear item id. The panel writes the
+// whole file; the extension (GM's Owlbear tab) polls it and draws a label for each
+// status under the token. Lives beside the roster on the combat-roster branch.
+export const STATUSES_PATH = "statuses.json";
+const STATUSES_URL = `https://api.github.com/repos/${REPO}/contents/${STATUSES_PATH}`;
+
+export interface TokenStatus {
+  key: string; // catalogue key ("poisoned", "rotten") or "custom:<text>"
+  label: string; // what the token shows
+  value?: number; // stacks / levels (Rotten, Exhaustion)
+  dmOnly?: boolean; // hidden from players on the token
+}
+export interface StatusFile {
+  savedAt: string | null;
+  tokens: Record<string, TokenStatus[]>;
+}
+
+export async function loadStatuses(token?: string): Promise<StatusFile> {
+  const res = await readJson<StatusFile>(`${STATUSES_URL}?ref=${BRANCH}`, token);
+  return res?.data ?? { savedAt: null, tokens: {} };
+}
+
+export async function saveStatuses(tokens: Record<string, TokenStatus[]>, token: string): Promise<void> {
+  const file: StatusFile = { savedAt: new Date().toISOString(), tokens };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const current = await readJson<StatusFile>(`${STATUSES_URL}?ref=${BRANCH}`, token);
+    const r = await fetch(STATUSES_URL, {
+      method: "PUT",
+      headers: { ...headers(token), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: "Statuses",
+        branch: BRANCH,
+        content: encode(JSON.stringify(file, null, 1) + "\n"),
+        ...(current ? { sha: current.sha } : {}),
+      }),
+    });
+    if (r.status === 409 || r.status === 422) continue;
+    if (!r.ok) throw new Error(`save ${r.status}`);
+    return;
+  }
+  throw new Error("save conflict");
+}
+
+/** For the extension's poll: returns undefined when unchanged since `etag` (a 304 costs no rate limit). */
+export async function pollStatuses(token: string, etag?: string): Promise<{ file: StatusFile; etag?: string } | undefined> {
+  const h: Record<string, string> = headers(token);
+  if (etag) h["If-None-Match"] = etag;
+  const r = await fetch(`${STATUSES_URL}?ref=${BRANCH}`, { headers: h, cache: "no-store" });
+  if (r.status === 304) return undefined;
+  if (r.status === 404) return { file: { savedAt: null, tokens: {} }, etag: r.headers.get("ETag") ?? undefined };
+  if (!r.ok) throw new Error(`statuses ${r.status}`);
+  const j = await r.json();
+  return { file: JSON.parse(decode(j.content)) as StatusFile, etag: r.headers.get("ETag") ?? undefined };
+}

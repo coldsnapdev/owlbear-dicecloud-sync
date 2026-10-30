@@ -107,6 +107,23 @@
       .dice { color: var(--ink); font-weight: 600; }
       .defences { margin: 10px 0 0; font-size: 13px; color: var(--ink-soft); display: grid; gap: 3px; }
       .defences b { font: 600 11px/1 Cinzel, serif; letter-spacing: .06em; color: var(--brass); margin-right: 6px; text-transform: uppercase; }
+      .statuses { margin: 10px 0 4px; }
+      .st-row { display: flex; flex-wrap: wrap; gap: 6px; }
+      .st-none { color: var(--ink-faint); font-size: 13px; font-style: italic; }
+      .st-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 9px; border-radius: 14px; background: color-mix(in srgb, var(--c) 45%, transparent); border: 1px solid var(--c); font-size: 13px; color: var(--ink); }
+      .st-chip.dm { border-style: dashed; opacity: .8; }
+      .st-chip b { min-width: 1ch; text-align: center; }
+      .st-name { font-weight: 600; }
+      .st-btn { background: rgba(0,0,0,.25); border: 0; color: var(--ink); border-radius: 10px; padding: 1px 7px; font: inherit; font-size: 12px; cursor: pointer; }
+      .st-btn:hover { background: rgba(0,0,0,.45); }
+      .st-btn.eye { font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
+      .st-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+      .st-add select, .st-add input[type=text] { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font: inherit; font-size: 13px; }
+      .st-reminders { margin: 8px 0 0; padding-left: 18px; font-size: 13px; color: var(--ink-soft); }
+      .st-reminders li { margin: 2px 0; }
+      .st-mini { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 6px; }
+      .st-mini span { font-size: 11px; padding: 1px 6px; border-radius: 9px; background: color-mix(in srgb, var(--c) 55%, transparent); border: 1px solid var(--c); color: var(--ink); white-space: nowrap; }
+      .st-mini span.dm { border-style: dashed; }
       .checks { margin: 10px 0 4px; border: 1px solid var(--line); border-radius: 6px; padding: 0 12px; }
       .checks summary { cursor: pointer; padding: 9px 0; font: 600 12px/1 Cinzel, serif; letter-spacing: .08em; color: var(--brass); list-style: none; }
       .checks summary::-webkit-details-marker { display: none; }

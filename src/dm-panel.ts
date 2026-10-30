@@ -15,7 +15,11 @@ import {
   type RosterEntry,
   type RosterFile,
   type Spell,
+  loadStatuses,
+  saveStatuses,
+  type TokenStatus,
 } from "./mailbox";
+import { STATUS_DEFS, statusDef, tokenText, CUSTOM_COLOUR } from "./statuses";
 
 const F = "com.battle-system.forge/";
 const TOKEN_KEY = "dm-panel/github-token";
@@ -36,6 +40,7 @@ let roster: RosterFile | undefined;
 let bestiary: BestiaryEntry[] = [];
 let spells: Spell[] = [];
 let assignments: Assignments = {};
+let statuses: Record<string, TokenStatus[]> = {};
 const open = new Set<string>(); // itemIds whose stat block is expanded
 const checksOpen = new Set<string>(); // itemIds whose "Saves & checks" drawer is open
 const checkMode = new Map<string, "adv" | "dis">(); // advantage/disadvantage for that token's next save or check
@@ -502,6 +507,93 @@ function checksDrawer(f: Record<string, any>, c: RosterEntry): string {
     </details>`;
 }
 
+// --- Statuses ----------------------------------------------------------------------
+// Edited here, saved to statuses.json; the extension in the GM's Owlbear tab draws
+// them on the tokens a few seconds later.
+const colourOf = (st: TokenStatus) => (st.key.startsWith("custom:") ? CUSTOM_COLOUR : statusDef(st.key)?.colour ?? CUSTOM_COLOUR);
+let statusTimer: ReturnType<typeof setTimeout> | undefined;
+function scheduleStatusSave() {
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(async () => {
+    const token = getToken();
+    if (!token) {
+      meta.textContent = "Statuses not saved: add a GitHub token in Settings.";
+      meta.className = "warn";
+      return;
+    }
+    try {
+      for (const id of Object.keys(statuses)) if (!statuses[id].length) delete statuses[id];
+      await saveStatuses(statuses, token);
+      meta.textContent = "Statuses saved. They appear on the tokens in a few seconds.";
+      meta.className = "";
+    } catch (err) {
+      meta.textContent = `Statuses not saved: ${err instanceof Error ? err.message : err}`;
+      meta.className = "warn";
+    }
+  }, 700);
+}
+function changeStatuses(itemId: string, fn: (list: TokenStatus[]) => TokenStatus[]) {
+  statuses[itemId] = fn([...(statuses[itemId] ?? [])]);
+  render();
+  scheduleStatusSave();
+}
+function addStatus(itemId: string, key: string, dmOnly: boolean, customText?: string) {
+  changeStatuses(itemId, (list) => {
+    if (customText) {
+      const k = `custom:${customText.toLowerCase()}`;
+      return list.some((x) => x.key === k) ? list : [...list, { key: k, label: customText, ...(dmOnly ? { dmOnly } : {}) }];
+    }
+    const def = statusDef(key);
+    if (!def) return list;
+    const have = list.find((x) => x.key === key);
+    if (have) {
+      if (def.max) have.value = Math.min(def.max, (have.value ?? 1) + 1);
+      return list;
+    }
+    return [...list, { key, label: def.label, ...(def.max ? { value: 1 } : {}), ...(dmOnly ? { dmOnly } : {}) }];
+  });
+}
+function headChips(itemId: string): string {
+  const list = statuses[itemId] ?? [];
+  return list.length
+    ? `<span class="st-mini">${list.map((st) => `<span style="--c:${colourOf(st)}" class="${st.dmOnly ? "dm" : ""}">${escapeHtml(tokenText(st))}</span>`).join("")}</span>`
+    : "";
+}
+function statusEditor(itemId: string): string {
+  const list = statuses[itemId] ?? [];
+  const id = escapeHtml(itemId);
+  const chips = list
+    .map((st, i) => {
+      const def = statusDef(st.key);
+      return `<span class="st-chip ${st.dmOnly ? "dm" : ""}" style="--c:${colourOf(st)}" title="${escapeHtml(def?.reminder ?? "Custom status")}">
+        <span class="st-name">${escapeHtml(st.label)}</span>
+        ${def?.max ? `<button type="button" class="st-btn" data-id="${id}" data-i="${i}" data-op="dec" title="One fewer">−</button><b>${st.value ?? 1}</b><button type="button" class="st-btn" data-id="${id}" data-i="${i}" data-op="inc" title="One more">+</button>` : ""}
+        <button type="button" class="st-btn eye" data-id="${id}" data-i="${i}" data-op="dm" title="${st.dmOnly ? "Hidden from players: click to show" : "Visible to players: click to hide"}">${st.dmOnly ? "DM only" : "Shown"}</button>
+        <button type="button" class="st-btn" data-id="${id}" data-i="${i}" data-op="del" title="Remove">×</button>
+      </span>`;
+    })
+    .join("");
+  const reminders = list
+    .map((st) => statusDef(st.key))
+    .filter((d): d is NonNullable<typeof d> => !!d)
+    .map((d) => `<li><b>${escapeHtml(d.label)}.</b> ${escapeHtml(d.reminder)}</li>`)
+    .join("");
+  return `
+    <div class="statuses" data-id="${id}">
+      <div class="st-row">${chips || `<span class="st-none">No statuses</span>`}</div>
+      <div class="st-add">
+        <select class="st-pick" data-id="${id}">
+          <option value="">Add a status…</option>
+          ${STATUS_DEFS.map((d) => `<option value="${d.key}">${escapeHtml(d.label)}</option>`).join("")}
+          <option value="__custom">Custom…</option>
+        </select>
+        <input class="st-custom" data-id="${id}" type="text" placeholder="Custom status, then Enter" hidden />
+        <label class="check"><input type="checkbox" class="st-dm" data-id="${id}" /> DM only</label>
+      </div>
+      ${reminders ? `<ul class="st-reminders">${reminders}</ul>` : ""}
+    </div>`;
+}
+
 // --- Rendering -------------------------------------------------------------------------
 const crText = (c?: number) => (c === undefined ? "–" : c === 0.125 ? "1/8" : c === 0.25 ? "1/4" : c === 0.5 ? "1/2" : String(c));
 
@@ -611,6 +703,7 @@ function render() {
           <button type="button" class="head" aria-expanded="${isOpen}">
             <span class="init">${c.initiative}</span>
             <span class="who"><span class="name">${escapeHtml(c.realName || c.name)}</span>${alias}</span>
+            ${headChips(c.itemId)}
             ${tag}
             <span class="ac" title="Armour class"><small>AC</small>${c.ac ?? "–"}</span>
             <span class="chev" aria-hidden="true"></span>
@@ -623,6 +716,7 @@ function render() {
                   ${options.map((o) => `<option value="${escapeHtml(o.id)}" ${manual && entry?.id === o.id ? "selected" : ""}>${escapeHtml(o.name)}</option>`).join("")}
                 </select>
               </label>
+              ${statusEditor(c.itemId)}
               ${entry ? statBlock(entry, c) : `<p class="empty">No stat block. Party members are listed so you can see the turn order; pick an entry above if this token should have one.</p>`}
             </div>` : ""}
         </section>`;
@@ -641,6 +735,48 @@ function render() {
       else if (op === "extra") doExtra(ctx, Number(b.dataset.i));
       else if (op === "recharge") doRecharge(ctx);
       else if (op === "ready") setReady(ctx);
+    }),
+  );
+  app.querySelectorAll<HTMLButtonElement>("button.st-btn").forEach((b) =>
+    b.addEventListener("click", () => {
+      const id = b.dataset.id!;
+      const i = Number(b.dataset.i);
+      changeStatuses(id, (list) => {
+        const st = list[i];
+        if (!st) return list;
+        const max = statusDef(st.key)?.max;
+        if (b.dataset.op === "del") list.splice(i, 1);
+        else if (b.dataset.op === "dm") list[i] = { ...st, dmOnly: !st.dmOnly };
+        else if (b.dataset.op === "inc" && max) list[i] = { ...st, value: Math.min(max, (st.value ?? 1) + 1) };
+        else if (b.dataset.op === "dec") {
+          if ((st.value ?? 1) <= 1) list.splice(i, 1);
+          else list[i] = { ...st, value: (st.value ?? 1) - 1 };
+        }
+        return list;
+      });
+    }),
+  );
+  app.querySelectorAll<HTMLSelectElement>("select.st-pick").forEach((sel) =>
+    sel.addEventListener("change", () => {
+      const id = sel.dataset.id!;
+      const box = sel.closest(".statuses")!;
+      const dm = box.querySelector<HTMLInputElement>(".st-dm")!.checked;
+      if (sel.value === "__custom") {
+        const inp = box.querySelector<HTMLInputElement>(".st-custom")!;
+        inp.hidden = false;
+        inp.focus();
+        return;
+      }
+      if (sel.value) addStatus(id, sel.value, dm);
+    }),
+  );
+  app.querySelectorAll<HTMLInputElement>("input.st-custom").forEach((inp) =>
+    inp.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      const text = inp.value.trim().slice(0, 40);
+      if (!text) return;
+      const dm = inp.closest(".statuses")!.querySelector<HTMLInputElement>(".st-dm")!.checked;
+      addStatus(inp.dataset.id!, "", dm, text);
     }),
   );
   app.querySelectorAll<HTMLButtonElement>("button.chk").forEach((b) =>
@@ -703,12 +839,15 @@ async function update() {
   meta.className = "";
   const token = getToken();
   try {
-    [roster, bestiary, assignments, spells] = await Promise.all([
+    let st;
+    [roster, bestiary, assignments, spells, st] = await Promise.all([
       loadRosterWith(token),
       loadBestiary(token),
       loadAssignments(token),
       loadSpells(token).catch(() => [] as Spell[]),
+      loadStatuses(token).catch(() => ({ savedAt: null, tokens: {} })),
     ]);
+    statuses = st.tokens ?? {};
     meta.textContent = roster.savedAt
       ? `Saved from Owlbear at ${new Date(roster.savedAt).toLocaleTimeString()} · ${bestiary.length} stat blocks · ${spells.length} spells`
       : "Nothing saved from Owlbear yet.";

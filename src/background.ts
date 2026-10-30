@@ -2,7 +2,9 @@ import OBR from "@owlbear-rodeo/sdk";
 import { diceCloudLogin, fetchCreatureStats, fetchCompanionStats, type DiceCloudSession } from "./dicecloud";
 import { writeForgeStats, getCombatRoster } from "./forge";
 import { getStoredCredentials, reconcileMappings, type Mapping } from "./config";
-import { getGitHubToken, rosterFingerprint, saveRoster, toRosterEntries } from "./mailbox";
+import { getGitHubToken, rosterFingerprint, saveRoster, toRosterEntries, pollStatuses, type StatusFile } from "./mailbox";
+import { buildLabel, type Item } from "@owlbear-rodeo/sdk";
+import { statusDef, tokenText, CUSTOM_COLOUR } from "./statuses";
 
 // How often to re-check DiceCloud. A few seconds is plenty for HP/AC
 // tracking and stays well clear of anything that could look like abuse of
@@ -51,6 +53,116 @@ async function checkRoster() {
     // Scene not ready yet, or items briefly unavailable mid-scene-change.
     log("Couldn't read the combat roster this cycle:", err);
   }
+}
+
+// --- Statuses ---------------------------------------------------------------------
+// The DM panel writes statuses.json; the GM's Owlbear tab polls it and draws one
+// label per status under each token, as an attachment (moves with the token, is
+// deleted with it). DM-only statuses are hidden items, which only the GM sees.
+// Our own markers carry MARKER_KEY so we never touch anyone else's items.
+const STATUS_POLL_MS = 4000;
+const MARKER_KEY = "com.abelon.status/marker";
+let statusEtag: string | undefined;
+let statusFile: StatusFile | undefined;
+let statusBusy = false;
+
+interface MarkerMeta { parent: string; sig: string }
+
+async function reconcileStatuses() {
+  if (!statusFile) return;
+  const items = await OBR.scene.items.getItems();
+  const byId = new Map(items.map((i) => [i.id, i]));
+  const existing = items.filter((i) => i.metadata[MARKER_KEY]);
+  const dpi = await OBR.scene.grid.getDpi();
+  const fontSize = Math.round(dpi * 0.16);
+  const padding = Math.round(fontSize * 0.35);
+  const row = fontSize * 1.25 + padding * 2 + Math.round(dpi * 0.04);
+
+  const wanted: { parent: string; sig: string; build: () => Promise<Item> }[] = [];
+  for (const [parentId, list] of Object.entries(statusFile.tokens)) {
+    const parent = byId.get(parentId);
+    if (!parent || !list?.length) continue;
+    const scaleSig = `${parent.scale.x.toFixed(3)},${parent.scale.y.toFixed(3)}`;
+    list.forEach((st, i) => {
+      const text = tokenText(st);
+      const colour = st.key.startsWith("custom:") ? CUSTOM_COLOUR : statusDef(st.key)?.colour ?? CUSTOM_COLOUR;
+      const sig = JSON.stringify([text, colour, !!st.dmOnly, i, dpi, scaleSig]);
+      wanted.push({
+        parent: parentId,
+        sig,
+        build: async () => {
+          const b = await OBR.scene.items.getItemBounds([parentId]);
+          return buildLabel()
+            .plainText(text)
+            .fontSize(fontSize)
+            .fontWeight(600)
+            .padding(padding)
+            .fillColor("#f4ead6")
+            .backgroundColor(colour)
+            .backgroundOpacity(0.9)
+            .cornerRadius(Math.round(padding * 1.4))
+            .pointerWidth(0)
+            .pointerHeight(0)
+            .pointerDirection("UP")
+            .position({ x: b.center.x, y: b.max.y + Math.round(dpi * 0.06) + i * row })
+            .attachedTo(parentId)
+            .layer("ATTACHMENT")
+            .locked(true)
+            .disableHit(true)
+            .visible(!st.dmOnly)
+            .disableAttachmentBehavior(["SCALE", "ROTATION", "COPY"])
+            .metadata({ [MARKER_KEY]: { parent: parentId, sig } satisfies MarkerMeta })
+            .build();
+        },
+      });
+    });
+  }
+
+  const keep = new Set<string>();
+  const toAdd: typeof wanted = [];
+  for (const w of wanted) {
+    const match = existing.find((e) => {
+      const m = e.metadata[MARKER_KEY] as MarkerMeta;
+      return !keep.has(e.id) && m.parent === w.parent && m.sig === w.sig;
+    });
+    if (match) keep.add(match.id);
+    else toAdd.push(w);
+  }
+  const toDelete = existing.filter((e) => !keep.has(e.id)).map((e) => e.id);
+  if (toDelete.length) await OBR.scene.items.deleteItems(toDelete);
+  if (toAdd.length) await OBR.scene.items.addItems(await Promise.all(toAdd.map((w) => w.build())));
+  if (toDelete.length || toAdd.length) log(`Statuses: ${toAdd.length} added, ${toDelete.length} removed.`);
+}
+
+async function pollStatusFile() {
+  if (statusBusy) return;
+  statusBusy = true;
+  try {
+    if (isGM === undefined) isGM = (await OBR.player.getRole()) === "GM";
+    const token = getGitHubToken();
+    if (!isGM || !token) return;
+    const res = await pollStatuses(token, statusEtag);
+    if (res) {
+      statusFile = res.file;
+      statusEtag = res.etag;
+    }
+    await reconcileStatuses();
+  } catch (err) {
+    log("Couldn't update statuses this cycle:", err);
+  } finally {
+    statusBusy = false;
+  }
+}
+
+let statusHandle: ReturnType<typeof setInterval> | undefined;
+function startStatusPolling() {
+  if (statusHandle) return;
+  pollStatusFile();
+  statusHandle = setInterval(pollStatusFile, STATUS_POLL_MS);
+}
+function stopStatusPolling() {
+  if (statusHandle) clearInterval(statusHandle);
+  statusHandle = undefined;
 }
 
 function log(...args: unknown[]) {
@@ -153,6 +265,7 @@ OBR.onReady(async () => {
 
   if (await OBR.scene.isReady()) {
     startPolling();
+    startStatusPolling();
     attachItemChangeListener();
     checkRoster();
   }
@@ -160,10 +273,12 @@ OBR.onReady(async () => {
   OBR.scene.onReadyChange((isReady) => {
     if (isReady) {
       startPolling();
+      startStatusPolling();
       attachItemChangeListener();
       checkRoster();
     } else {
       stopPolling();
+      stopStatusPolling();
     }
   });
 });
