@@ -276,14 +276,22 @@ function flavour(ctx: ActionCtx): string | undefined {
   return lines[randInt(lines.length) - 1].replace(/\{name\}/g, ctx.shown);
 }
 
-/** The ability name as players see it: DM notes in brackets ("Recharge 5-6", "Level 3 Slot") stay in the panel. */
-/** Rules text as players see it: bracketed DM notes are dropped here too. */
-const publicText = (text: string) => text.replace(/\s*\([^)]*\)/g, "").replace(/\s+([.,;:])/g, "$1").trim();
+/** The ability name as players see it: name brackets hold rules, which go in the post body instead (see nameRules). */
+/** Rules carried in an ability's name brackets ("Recharge 5-6", "Level 3 Slot"), minus category tags. */
+const CATEGORY_WORDS = /^(trait|bonus action|reaction|legendary( action)?)$/i;
+function nameRules(ctx: ActionCtx): string {
+  const parts = Array.from(ctx.raw.name.matchAll(/\(([^)]*)\)/g))
+    .flatMap((m) => m[1].split(","))
+    .map((x) => x.trim())
+    .filter((x) => x && !CATEGORY_WORDS.test(x));
+  return parts.join(" · ");
+}
 const publicName = (ctx: ActionCtx) => ctx.p.title.replace(/\s*\([^)]*\)/g, "").trim() || ctx.p.title;
 
 /** Flavour (or the rules text) plus full spell text, for attack and "use" posts. */
 function describe(ctx: ActionCtx): string {
-  const parts = [flavour(ctx) ?? publicText(ctx.p.plain)];
+  const rules = nameRules(ctx);
+  const parts = [(rules ? `*${rules}*\n` : "") + (flavour(ctx) ?? ctx.p.plain)];
   const spell = spellFor(ctx.p.title);
   if (spell) parts.push(spellBlock(spell));
   return parts.join("\n\n");
@@ -661,6 +669,7 @@ function statBlock(e: BestiaryEntry, c: RosterEntry): string {
   const card = (ctx: ActionCtx) => `
     <div class="action ${ctx.p.category}">
       <div class="action-head"><span class="action-name">${escapeHtml(ctx.p.title)}</span>${ctx.p.dcs.map((d) => `<span class="dc">${escapeHtml(d)}</span>`).join("")}${spellFor(ctx.p.title) ? `<span class="spell-tag">Spell</span>` : ""}${e.flavour?.[ctx.raw.name]?.length ? `<span class="flav-tag" title="Has flavour text for Discord">Flavour</span>` : ""}</div>
+      ${e.notes?.[ctx.raw.name] ? `<div class="dm-note-line" title="DM only: never posted to Discord">${escapeHtml(e.notes[ctx.raw.name])}</div>` : ""}
       ${rollRow(ctx)}
       <div class="action-text">${ctx.p.text}</div>
     </div>`;

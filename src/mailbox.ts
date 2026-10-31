@@ -215,6 +215,8 @@ export interface BestiaryEntry {
   forge: Record<string, unknown>;
   /** Optional flavour lines per action name (as in Forge's Z035). "{name}" is replaced with the token's visible name. */
   flavour?: Record<string, string[]>;
+  /** DM-only notes per action name (character choices, tactics). Shown in the panel, never posted. */
+  notes?: Record<string, string>;
 }
 
 // --- Spells -------------------------------------------------------------------------
