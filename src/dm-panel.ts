@@ -209,6 +209,7 @@ function parseAction(a: { name: string; description: string }, forced?: Category
     }
     const word = (m[2] || "").toLowerCase();
     if (DAMAGE_TYPES.has(word)) p.damage.push({ expr, type: word });
+    else if (word === "hit") p.extras.push({ expr, type: "hit points" });
     else p.extras.push({ expr, type: "" });
   }
   // DCs from the name too ("Command (DC 16 Wisdom save)"), so they still reach the post
@@ -357,17 +358,30 @@ function doAttack(ctx: ActionCtx, mode?: "adv" | "dis") {
   );
 }
 
+/** No to-hit roll means no second stage: Use/Cast rolls every die in the ability and posts it all at once. */
 function doUse(ctx: ActionCtx) {
   markUsed(ctx);
-  lastResult.set(`${ctx.key}|use`, `<em>posted</em>`);
+  const dice = [...ctx.p.damage, ...ctx.p.extras].map((d) => ({ d, r: rollExpr(d.expr)! })).filter((x) => x.r);
+  const label = (d: DieSpec) => (DAMAGE_TYPES.has(d.type) && d.type !== "healing" ? `${d.type} damage` : d.type === "healing" ? "hit points" : d.type || d.expr);
+  lastResult.set(`${ctx.key}|use`, dice.length ? `<b>${dice.map((x) => x.r.total).join(" + ")}</b>` : `<em>posted</em>`);
   freshKey = `${ctx.key}|use`;
   const dcs = ctx.p.dcs.length ? `\n\n**${ctx.p.dcs.join(" · ")}**` : "";
-  log({ who: ctx.dmName, action: ctx.p.title, text: `uses ${escapeHtml(ctx.p.title)}` }, {
-    author: { name: ctx.shown },
-    title: publicName(ctx),
-    description: describe(ctx) + dcs,
-    color: COLOUR.brass,
-  });
+  const rolled = dice.length ? `\n\n${dice.map((x) => `**${x.r.total}** ${label(x.d)}`).join("\n")}` : "";
+  log(
+    {
+      who: ctx.dmName,
+      action: ctx.p.title,
+      text: dice.length
+        ? dice.map((x) => `<span class="big">${x.r.total}</span> ${escapeHtml(label(x.d))} <span class="how">${working(x.r)}</span>`).join("<br>")
+        : `uses ${escapeHtml(ctx.p.title)}`,
+    },
+    {
+      author: { name: ctx.shown },
+      title: publicName(ctx),
+      description: describe(ctx) + dcs + rolled,
+      color: COLOUR.brass,
+    },
+  );
 }
 
 function doDamage(ctx: ActionCtx) {
@@ -628,17 +642,20 @@ function rollRow(ctx: ActionCtx): string {
     const sign = p.hit.mod >= 0 ? "+" : "−";
     parts.push(`<span class="rollgroup"><button type="button" class="roll hit" data-act="${k}" data-op="hit"${off || ` title="Roll to hit and post the attack"`}>Attack ${sign}${Math.abs(p.hit.mod)}</button><span class="seg"><button type="button" class="roll mode" data-act="${k}" data-op="hit" data-mode="adv"${off || ` title="Roll with advantage"`}>Adv</button><button type="button" class="roll mode" data-act="${k}" data-op="hit" data-mode="dis"${off || ` title="Roll with disadvantage"`}>Dis</button></span>${resultSpan(`${ctx.key}|hit`)}</span>`);
   } else if (p.category !== "trait" && p.category !== "tactics") {
-    parts.push(`<span class="rollgroup"><button type="button" class="roll use" data-act="${k}" data-op="use"${off || ` title="Post this action's description to Discord"`}>${spellFor(p.title) ? "Cast" : "Use"}</button>${resultSpan(`${ctx.key}|use`)}</span>`);
+    const dice = [...p.damage, ...p.extras];
+    const diceText = dice.length ? ` <span class="parts">${dice.map((d) => `${escapeHtml(d.expr)}${d.type ? ` <i class="t-${d.type.split(" ")[0]}">${escapeHtml(d.type)}</i>` : ""}`).join(" · ")}</span>` : "";
+    parts.push(`<span class="rollgroup"><button type="button" class="roll use" data-act="${k}" data-op="use"${off || ` title="${dice.length ? "Roll and post in one go" : "Post this action's description to Discord"}"`}>${spellFor(p.title) ? "Cast" : "Use"}${diceText}</button>${resultSpan(`${ctx.key}|use`)}</span>`);
   }
+  const twoStage = !!p.hit; // attacks: to-hit first, damage once the table says it hits
   if (min !== undefined) {
     parts.push(isSpent
       ? `<span class="rollgroup"><span class="rc-tag spent">Spent</span><button type="button" class="roll recharge" data-act="${k}" data-op="recharge" title="Roll a d6 privately at the start of its turn">Recharge ${min}–6</button><button type="button" class="roll ready" data-act="${k}" data-op="ready" title="Mark ready without rolling">Ready</button>${resultSpan(`${ctx.key}|rc`)}</span>`
       : `<span class="rollgroup"><span class="rc-tag">Ready</span>${resultSpan(`${ctx.key}|rc`)}</span>`);
   }
-  if (p.damage.length) {
+  if (twoStage && p.damage.length) {
     parts.push(`<span class="rollgroup"><button type="button" class="roll dmg" data-act="${k}" data-op="dmg" title="Roll all damage">Damage <span class="parts">${p.damage.map((d) => `${escapeHtml(d.expr)} <i class="t-${d.type}">${d.type}</i>`).join(" · ")}</span></button>${resultSpan(`${ctx.key}|dmg`)}</span>`);
   }
-  p.extras.forEach((d, i) => {
+  if (twoStage) p.extras.forEach((d, i) => {
     parts.push(`<span class="rollgroup"><button type="button" class="roll extra" data-act="${k}" data-op="extra" data-i="${i}" title="Roll ${escapeHtml(d.expr)}">${escapeHtml(d.expr)}</button>${resultSpan(`${ctx.key}|x${i}`)}</span>`);
   });
   return parts.length ? `<div class="rolls">${parts.join("")}</div>` : "";
