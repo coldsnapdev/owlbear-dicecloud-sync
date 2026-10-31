@@ -77,7 +77,7 @@ function renderSettings() {
   ].join(" ");
   status.className = hasToken && hasHook ? "hint" : "hint warn";
   publicToggle.checked = isPublic();
-  publicLabel.textContent = isPublic() ? "Public: rolls post to Discord" : "Private: rolls stay here";
+  publicLabel.textContent = isPublic() ? "Public rolls" : "Private rolls";
   document.body.classList.toggle("private", !isPublic());
 }
 
@@ -91,6 +91,16 @@ $<HTMLButtonElement>("save-webhook").addEventListener("click", () => {
   $<HTMLInputElement>("discord-webhook").value = "";
   renderSettings();
 });
+// Status chips on the character boxes: shown unless switched off (remembered per browser).
+const CHIPS_KEY = "dm-panel/tile-statuses";
+const chipsToggle = $<HTMLInputElement>("chips-toggle");
+chipsToggle.checked = read(CHIPS_KEY) !== "no";
+document.body.classList.toggle("hide-tile-status", !chipsToggle.checked);
+chipsToggle.addEventListener("change", () => {
+  store(CHIPS_KEY, chipsToggle.checked ? undefined : "no");
+  document.body.classList.toggle("hide-tile-status", !chipsToggle.checked);
+});
+
 publicToggle.addEventListener("change", () => {
   store(PUBLIC_KEY, publicToggle.checked ? undefined : "no");
   renderSettings();

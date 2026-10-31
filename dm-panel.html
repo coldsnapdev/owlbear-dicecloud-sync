@@ -210,6 +210,8 @@
 
       /* Public/private switch */
       .switch { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; color: var(--ink-soft); user-select: none; }
+      .switch.second { margin-left: 18px; }
+      body.hide-tile-status .pc-pill .st-mini { display: none; }
       .switch input { position: absolute; opacity: 0; pointer-events: none; }
       .track { width: 42px; height: 24px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); position: relative; transition: background .15s; }
       .knob { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--ink-faint); transition: transform .15s, background .15s; }
@@ -269,7 +271,12 @@
         <label class="switch" title="Public rolls post to Discord; private rolls stay in this panel">
           <input id="public-toggle" type="checkbox" checked />
           <span class="track"><span class="knob"></span></span>
-          <span id="public-label">Public</span>
+          <span id="public-label">Public rolls</span>
+        </label>
+        <label class="switch second" title="Show status chips on the character boxes">
+          <input id="chips-toggle" type="checkbox" checked />
+          <span class="track"><span class="knob"></span></span>
+          <span>Statuses</span>
         </label>
       </header>
       <div class="layout">
