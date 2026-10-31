@@ -84,7 +84,13 @@ export interface TargetsMessage {
   at: string;
   ids: string[];
 }
-export type LiveMessage = PanelCommand | StatusesMessage | TargetsMessage;
+/** Panel asks Owlbear to resend the live roster now (Update Roster while linked). */
+export interface RosterRequest {
+  kind: "roster-request";
+  id: string;
+  at: string;
+}
+export type LiveMessage = PanelCommand | StatusesMessage | TargetsMessage | RosterRequest;
 
 /** One combatant as Owlbear sees it right now (live link only: HP never goes to GitHub). */
 export interface LiveCombatant {

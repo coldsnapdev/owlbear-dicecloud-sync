@@ -70,7 +70,7 @@ app.innerHTML = `
     <p id="live-status" class="hint"></p>
   </section>
 
-  <p class="hint" style="opacity:0.5;">build 47 — live roster with HP, targets and hit/miss
+  <p class="hint" style="opacity:0.5;">build 48 — roster refresh on Update Roster
 `;
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;

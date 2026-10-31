@@ -227,6 +227,10 @@ function handleLiveMessage(msg: LiveMessage) {
     }
     return;
   }
+  if (msg.kind === "roster-request") {
+    pushRoster(true).catch((err) => log("Couldn't send the roster:", err));
+    return;
+  }
   if (msg.kind === "targets") {
     targetIds = msg.ids;
     reconcileTargets().catch((err) => log("Couldn't draw targets:", err));
@@ -299,7 +303,7 @@ async function pushRoster(force = false) {
     itemId: c.itemId, name: c.name, realName: c.realName, initiative: c.initiative,
     ac: c.ac, hp: c.currentHP, maxHp: c.maxHP, tempHp: c.tempHP,
   }));
-  const forgeInfo = await forgeDiagnostics(items);
+  const forgeInfo = await forgeDiagnostics(items).catch((err) => `couldn't read: ${err}`); // never let this block the roster
   const fp = JSON.stringify([combatants, forgeInfo]);
   if (!force && fp === lastRosterSent) return;
   lastRosterSent = fp;

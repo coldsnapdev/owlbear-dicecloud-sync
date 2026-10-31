@@ -1118,6 +1118,9 @@ async function persistAssignments() {
 }
 
 async function update() {
+  // linked: ask Owlbear for a fresh live roster too (the GitHub copy has no HP)
+  lastLiveFp = "";
+  fastSend({ kind: "roster-request", id: crypto.randomUUID(), at: new Date().toISOString() });
   updateBtn.disabled = true;
   meta.textContent = "Loading…";
   meta.className = "";
