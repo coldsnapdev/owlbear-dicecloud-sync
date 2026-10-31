@@ -18,6 +18,7 @@ export interface ShownRoll {
   dice: ShownDie[];
   results: ShownResult[];
   detail?: string; // "d20 14 + 7"
+  mod?: number; // flat bonus added to the dice, shown big beside them once they settle
   tag?: string; // "Natural 20", "Critical hit"
   tone?: "crit" | "fumble";
   private?: boolean; // show to the GM only

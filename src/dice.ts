@@ -431,6 +431,21 @@ async function main() {
     ${roll.tag ? `<div class="tag">${esc(roll.tag)}</div>` : ""}
     ${roll.detail ? `<div class="detail">${esc(roll.detail)}</div>` : ""}`;
 
+  // the flat bonus, big, just right of the dice once they've settled
+  const modEl = document.getElementById("mod")!;
+  const placeModifier = () => {
+    if (!roll.mod || !flights.length) return;
+    const right = flights.reduce((a, f) => (f.to.x > a.to.x ? f : a));
+    const midZ = flights.reduce((a, f) => a + f.to.z, 0) / flights.length;
+    camera.updateMatrixWorld(); // the first frame can come before any render has set it
+    const p = new THREE.Vector3(right.to.x + 1.25, right.die.restHeight * 0.6, midZ).project(camera);
+    modEl.textContent = `${roll.mod > 0 ? "+" : "−"}${Math.abs(roll.mod)}`;
+    // keep it on screen when a wide spread of dice reaches the right edge
+    modEl.style.left = `${Math.min(((p.x + 1) / 2) * W, W - modEl.offsetWidth - 10)}px`;
+    modEl.style.top = `${((1 - p.y) / 2) * H}px`;
+    requestAnimationFrame(() => modEl.classList.add("show"));
+  };
+
   const clock = new THREE.Clock();
   const tmpQ = new THREE.Quaternion();
   let hudShown = false;
@@ -475,6 +490,7 @@ async function main() {
     if (!hudShown && t > landAt - 0.05) {
       hudShown = true;
       hud.classList.add("show");
+      placeModifier();
       if (flourish && critDie) flourish.start(critDie.to.clone().setY(critDie.die.restHeight), critDie.die, landAt);
     }
     flourish?.update(t);

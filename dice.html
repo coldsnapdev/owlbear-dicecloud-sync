@@ -15,9 +15,9 @@
       #hud {
         position: absolute; left: 50%; bottom: 10px; transform: translate(-50%, 14px); opacity: 0;
         min-width: 220px; max-width: 92%; padding: 9px 22px 11px; border-radius: 14px; text-align: center;
-        background: linear-gradient(180deg, rgba(28,22,15,.86), rgba(18,14,10,.92));
-        border: 1px solid rgba(201,162,94,.55); box-shadow: 0 10px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,236,200,.08);
-        backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+        background: linear-gradient(180deg, rgba(28,22,15,.52), rgba(18,14,10,.6));
+        border: 1px solid rgba(201,162,94,.4); box-shadow: 0 8px 24px rgba(0,0,0,.25);
+        backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
         transition: opacity .35s ease, transform .45s cubic-bezier(.2,.9,.25,1.2);
         font-family: "Crimson Pro", Georgia, serif; color: #efe3c8;
       }
@@ -32,13 +32,23 @@
       .tag { margin-top: 2px; font: 700 12px/1.3 Cinzel, Georgia, serif; letter-spacing: .16em; text-transform: uppercase; }
       .crit .tag { color: #f0c869; }
       .fumble .tag { color: #e07a62; }
-      .detail { margin-top: 3px; font-size: 13px; color: #a8987a; font-style: italic; }
+      #mod {
+        position: absolute; left: 0; top: 0; opacity: 0; pointer-events: none; white-space: nowrap;
+        font: 700 46px/1 Cinzel, Georgia, serif; color: #fff4dc; letter-spacing: .02em;
+        -webkit-text-stroke: 1.5px rgba(30,22,14,.85); paint-order: stroke fill;
+        text-shadow: 0 0 2px rgba(0,0,0,.9), 0 3px 14px rgba(0,0,0,.75), 0 0 22px rgba(201,162,94,.35);
+        transform: translate(-10px, -50%) scale(.6); transition: opacity .3s ease, transform .5s cubic-bezier(.2,1.4,.3,1);
+      }
+      #mod.show { opacity: 1; transform: translate(0, -50%) scale(1); }
+      .detail { margin-top: 3px; font-size: 13px; color: #c7b896; font-style: italic; text-shadow: 0 1px 4px rgba(0,0,0,.8); }
+      .who, .res span, .tag { text-shadow: 0 1px 4px rgba(0,0,0,.85); }
     </style>
   </head>
   <body>
     <div id="fade">
       <div id="stage"></div>
       <div id="hud"></div>
+      <div id="mod"></div>
     </div>
     <script type="module" src="/src/dice.ts"></script>
   </body>

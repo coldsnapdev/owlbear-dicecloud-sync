@@ -388,7 +388,7 @@ function doAttack(ctx: ActionCtx, mode?: "adv" | "dis") {
       color: nat ? COLOUR[nat] : COLOUR.brass,
     },
     undefined,
-    { who: ctx.shown, action: publicName(ctx), dice: d20s(r, "brass"), results: [{ value: r.total, label: "to hit" }], detail: how, tag: tag.replace("!", "") || undefined, tone: nat },
+    { who: ctx.shown, action: publicName(ctx), dice: d20s(r, "brass"), mod: r.mod, results: [{ value: r.total, label: "to hit" }], detail: how, tag: tag.replace("!", "") || undefined, tone: nat },
   );
 }
 
@@ -424,6 +424,7 @@ function doUse(ctx: ActionCtx) {
           who: ctx.shown,
           action: publicName(ctx),
           dice: dice.flatMap((x) => diceOf(x.r, x.d.type === "hit points" ? "healing" : x.d.type || "brass")),
+          mod: dice.reduce((a, x) => a + x.r.mod, 0),
           results: dice.map((x) => ({ value: x.r.total, label: label(x.d), tint: x.d.type === "hit points" ? "healing" : x.d.type })),
           detail: halves ? `Half on a successful save: ${dice.filter((x) => half(x)).map((x) => Math.floor(x.r.total / 2)).join(" · ")}` : dice.map((x) => x.d.expr).join(" · "),
         }
@@ -454,6 +455,7 @@ function doDamage(ctx: ActionCtx) {
       who: ctx.shown,
       action: publicName(ctx),
       dice: rolls.flatMap((x) => diceOf(x.r, x.d.type)),
+      mod: rolls.reduce((a, x) => a + x.r.mod, 0),
       results: rolls.map((x) => ({ value: x.r.total, label: x.d.type, tint: x.d.type })),
       detail: rolls.map((x) => x.d.expr).join(" · "),
       tag: crit ? "Critical hit" : undefined,
@@ -472,7 +474,7 @@ function doExtra(ctx: ActionCtx, i: number) {
     { who: ctx.dmName, action: ctx.p.title, text: `<span class="big">${r.total}</span> <span class="how">${escapeHtml(d.expr)}: ${working(r)}</span>` },
     { author: { name: ctx.shown }, description: `${ctx.shown}'s ${publicName(ctx)}: **${r.total}** (${d.expr}: ${working(r)})`, color: COLOUR.brass },
     undefined,
-    { who: ctx.shown, action: publicName(ctx), dice: diceOf(r, d.type && d.type !== "hit points" ? d.type : d.type === "hit points" ? "healing" : "brass"), results: [{ value: r.total, label: d.type || d.expr }], detail: `${d.expr}: ${working(r)}` },
+    { who: ctx.shown, action: publicName(ctx), dice: diceOf(r, d.type && d.type !== "hit points" ? d.type : d.type === "hit points" ? "healing" : "brass"), mod: r.mod, results: [{ value: r.total, label: d.type || d.expr }], detail: `${d.expr}: ${working(r)}` },
   );
 }
 
@@ -493,7 +495,7 @@ function rollBox() {
     { who: "Dice", action: expr, text: `<span class="big">${r.total}</span> <span class="how">${working(r)}</span>` },
     { author: { name: "The DM rolls" }, description: `**${r.total}** (${expr}: ${working(r)})`, color: COLOUR.dice },
     privateRoll,
-    { who: "The DM rolls", action: "", dice: diceOf(r, "brass"), results: [{ value: r.total, label: expr }], detail: working(r) },
+    { who: "The DM rolls", action: "", dice: diceOf(r, "brass"), mod: r.mod, results: [{ value: r.total, label: expr }], detail: working(r) },
   );
 }
 $<HTMLButtonElement>("dice-roll").addEventListener("click", rollBox);
@@ -562,7 +564,7 @@ function doCheck(c: CheckCtx) {
     { who: c.dmName, action: c.label, text: `<span class="big">${r.total}</span> <span class="how">${how}</span>${tag ? ` <em class="${nat}">${tag}</em>` : ""}`, tone: nat },
     { author: { name: c.shown }, description: `${c.shown} makes ${c.post}:\n\n**${r.total}** (${how})${tag ? ` — **${tag}**` : ""}`, color: nat ? COLOUR[nat] : COLOUR.brass },
     undefined,
-    { who: c.shown, action: c.label, dice: d20s(r, "verdigris"), results: [{ value: r.total, label: c.label }], detail: how, tag: tag || undefined, tone: nat },
+    { who: c.shown, action: c.label, dice: d20s(r, "verdigris"), mod: r.mod, results: [{ value: r.total, label: c.label }], detail: how, tag: tag || undefined, tone: nat },
   );
 }
 
