@@ -220,7 +220,7 @@ interface BuiltDie {
   restHeight: number;
 }
 
-function buildDie(spec: { sides: number; value: number; tint?: string; label?: (v: number) => string }): BuiltDie {
+function buildDie(spec: { sides: number; value: number; tint?: string; label?: (v: number) => string }, faceTo: THREE.Vector3, screenUp: THREE.Vector3): BuiltDie {
   const sides = spec.sides === 100 ? 10 : spec.sides;
   const sh = shapeFor(sides);
   const lk = look(spec.tint);
@@ -264,17 +264,23 @@ function buildDie(spec: { sides: number; value: number; tint?: string; label?: (
   const group = new THREE.Group();
   group.add(mesh);
 
-  // final rest: result face (or d4 corner) to the sky, numeral turned to read upright from the camera
-  const q1 = new THREE.Quaternion().setFromUnitVectors(target, new THREE.Vector3(0, 1, 0));
-  let turn = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.random() * Math.PI * 2);
+  // final rest: the result face (or d4 corner) looks straight at the camera, so it reads square-on
+  // rather than tilted away, and its numeral is turned upright on screen
+  const q1 = new THREE.Quaternion().setFromUnitVectors(target, faceTo);
+  const flat = (v: THREE.Vector3) => v.clone().sub(faceTo.clone().multiplyScalar(v.dot(faceTo))).normalize();
+  let turn = new THREE.Quaternion().setFromAxisAngle(faceTo, Math.random() * Math.PI * 2);
   if (textUp) {
-    const up = textUp.clone().applyQuaternion(q1).setY(0).normalize();
     turn = new THREE.Quaternion()
-      .setFromUnitVectors(up, new THREE.Vector3(0, 0, -1)) // top of the numeral away from the camera = upright on screen
-      .premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (Math.random() - 0.5) * 0.35));
+      .setFromUnitVectors(flat(textUp.clone().applyQuaternion(q1)), flat(screenUp))
+      .premultiply(new THREE.Quaternion().setFromAxisAngle(faceTo, (Math.random() - 0.5) * 0.3));
   }
   const finalQ = turn.multiply(q1);
-  return { group, mesh, materials, finalQ, restHeight: sh.restHeight };
+  // sit it on the table: lowest corner touches the ground
+  const pos = sh.geometry.getAttribute("position");
+  const v = new THREE.Vector3();
+  let minY = Infinity;
+  for (let i = 0; i < pos.count; i++) minY = Math.min(minY, v.fromBufferAttribute(pos, i).applyQuaternion(finalQ).y);
+  return { group, mesh, materials, finalQ, restHeight: -minY };
 }
 
 function material(map: THREE.Texture): THREE.MeshPhysicalMaterial {
@@ -294,15 +300,22 @@ const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeOutQuart = (t: number) => 1 - Math.pow(1 - t, 4);
 const clamp01 = (t: number) => Math.max(0, Math.min(1, t));
 
-/** Height above rest for a die thrown from y0, landing with three diminishing bounces. */
+/** Height above rest for a die thrown from y0, landing with five diminishing bounces. */
+const HOPS: [number, number, number][] = [
+  [0.26, 0.47, 0.95],
+  [0.47, 0.62, 0.48],
+  [0.62, 0.73, 0.24],
+  [0.73, 0.81, 0.11],
+  [0.81, 0.87, 0.045],
+  [0.87, 0.91, 0.015],
+];
 function bounceHeight(s: number, y0: number): number {
-  if (s < 0.36) return y0 * (1 - Math.pow(s / 0.36, 2));
-  const hops: [number, number, number][] = [[0.36, 0.64, 0.62], [0.64, 0.82, 0.2], [0.82, 0.92, 0.06]];
-  for (const [a, b, h] of hops) if (s < b) { const u = (s - a) / (b - a); return h * 4 * u * (1 - u); }
+  if (s < HOPS[0][0]) return y0 * (1 - Math.pow(s / HOPS[0][0], 2));
+  for (const [a, b, h] of HOPS) if (s < b) { const u = (s - a) / (b - a); return h * 4 * u * (1 - u); }
   return 0;
 }
 /** Contact moments, for the little squash on impact. */
-const CONTACTS = [0.36, 0.64, 0.82, 0.92];
+const CONTACTS = HOPS.map((h) => h[0]).concat(HOPS[HOPS.length - 1][1]);
 
 interface Flight {
   die: BuiltDie;
@@ -368,6 +381,9 @@ async function main() {
   ground.receiveShadow = true;
   scene.add(ground);
 
+  const screenUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+  const faceToCamera = (at: THREE.Vector3) => camera.position.clone().sub(at).normalize();
+
   // expand d100 into tens + units d10s; cap what we draw
   const draw: { die: ShownDie; sides: number; value: number; label?: (v: number) => string }[] = [];
   for (const d of roll.dice) {
@@ -380,13 +396,13 @@ async function main() {
   const shown = draw.slice(0, 12);
 
   // layout: one or two rows centred in view
-  const perRow = shown.length > 6 ? Math.ceil(shown.length / 2) : shown.length;
-  const gap = Math.min(2.1, 8.6 / Math.max(1, perRow - 0.2));
+  const perRow = shown.length > 5 ? Math.ceil(shown.length / 2) : shown.length;
+  const gap = Math.min(2.15, 9.2 / Math.max(1, perRow - 0.1));
   const flights: Flight[] = shown.map((s, i) => {
     const row = Math.floor(i / perRow), col = i % perRow;
     const inRow = Math.min(perRow, shown.length - row * perRow);
-    const to = new THREE.Vector3((col - (inRow - 1) / 2) * gap, 0, (shown.length > 6 ? (row === 0 ? -1.0 : 1.1) : 0) + 0.2);
-    const die = buildDie({ sides: s.sides, value: s.value, tint: s.die.tint, label: s.label });
+    const to = new THREE.Vector3((col - (inRow - 1) / 2) * gap, 0, (shown.length > 5 ? (row === 0 ? -1.5 : 0.6) : 0) + 0.15);
+    const die = buildDie({ sides: s.sides, value: s.value, tint: s.die.tint, label: s.label }, faceToCamera(to), screenUp);
     const from = new THREE.Vector3(to.x - 6.5 - Math.random() * 2, 0, to.z + (Math.random() - 0.5) * 3);
     const travel = new THREE.Vector3().subVectors(to, from).setY(0).normalize();
     const spinAxis = new THREE.Vector3(travel.z, 0, -travel.x).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.5)).normalize();
@@ -396,9 +412,9 @@ async function main() {
       die, from, to, dice: s.die,
       y0: 2.6 + Math.random() * 1.2,
       delay: i * 0.075 + Math.random() * 0.05,
-      dur: 1.25 + Math.random() * 0.25,
+      dur: 1.9 + Math.random() * 0.3,
       spinAxis,
-      spin: Math.PI * 2 * (2.2 + Math.random() * 1.3),
+      spin: Math.PI * 2 * (3 + Math.random() * 1.5),
       dropped: s.die.kept === false,
     };
   });
@@ -440,8 +456,8 @@ async function main() {
       tmpQ.setFromAxisAngle(f.spinAxis, -remaining);
       f.die.group.quaternion.copy(tmpQ).multiply(f.die.finalQ);
       // a whisper of settle wobble after the last bounce
-      if (s > 0.92 && s < 1) {
-        const w = Math.sin((s - 0.92) * 70) * (1 - s) * 0.5;
+      if (s > 0.91 && s < 1) {
+        const w = Math.sin((s - 0.91) * 70) * (1 - s) * 0.5;
         f.die.group.rotateX(w * 0.12);
       }
       // squash on each contact
@@ -462,7 +478,7 @@ async function main() {
       if (flourish && critDie) flourish.start(critDie.to.clone().setY(critDie.die.restHeight), critDie.die, landAt);
     }
     flourish?.update(t);
-    if (!fadeStarted && t > landAt + 2.7) {
+    if (!fadeStarted && t > landAt + 4.6) { // hold long enough for everyone to read it
       fadeStarted = true;
       document.getElementById("fade")!.classList.add("out");
     }

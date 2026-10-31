@@ -300,7 +300,7 @@ type DiceShow = Omit<ShownRoll, "id" | "private">;
 // to everyone (or only the GM, for private rolls). The Discord post waits for the dice to land.
 const DICE_KEY = "dm-panel/dice-in-owlbear";
 const diceEnabled = () => read(DICE_KEY) !== "no";
-const DISCORD_AFTER_DICE_MS = 4200;
+const DISCORD_AFTER_DICE_MS = 5000;
 function showDice(show: DiceShow, privateRoll: boolean): boolean {
   const token = getToken();
   if (!diceEnabled() || !token || !show.dice.length) return false;

@@ -24,4 +24,4 @@ export interface ShownRoll {
 }
 
 export const DICE_CHANNEL = "com.abelon.dice/show";
-export const DICE_SHOW_MS = 6000; // covers page load + throw + read time + fade
+export const DICE_SHOW_MS = 9000; // covers page load + throw + read time + fade
