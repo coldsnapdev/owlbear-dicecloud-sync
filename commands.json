@@ -225,6 +225,31 @@
     "id": "3fbd61cd-8363-409b-9c6b-0b78e4c03aee",
     "private": false
    }
+  },
+  {
+   "id": "31dfa535-5923-4359-b77e-46936a84538c",
+   "at": "2026-10-31T12:39:55.101Z",
+   "kind": "show-roll",
+   "roll": {
+    "who": "Radek",
+    "action": "Longsword",
+    "dice": [
+     {
+      "sides": 20,
+      "value": 14,
+      "tint": "brass"
+     }
+    ],
+    "results": [
+     {
+      "value": 19,
+      "label": "to hit"
+     }
+    ],
+    "detail": "d20 14 + 5",
+    "id": "31dfa535-5923-4359-b77e-46936a84538c",
+    "private": false
+   }
   }
  ]
 }
