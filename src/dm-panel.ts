@@ -549,14 +549,14 @@ function scheduleStatusSave() {
   statusTimer = setTimeout(async () => {
     const token = getToken();
     if (!token) {
-      meta.textContent = "Statuses not saved: add a GitHub token in Settings.";
+      meta.textContent = "Statuses not saved: no GitHub token";
       meta.className = "warn";
       return;
     }
     try {
       for (const id of Object.keys(statuses)) if (!statuses[id].length) delete statuses[id];
       await saveStatuses(statuses, token);
-      meta.textContent = "Statuses saved. They appear on the tokens in a few seconds.";
+      meta.textContent = "Statuses saved";
       meta.className = "";
     } catch (err) {
       meta.textContent = `Statuses not saved: ${err instanceof Error ? err.message : err}`;
@@ -721,15 +721,15 @@ async function applyToToken(itemId: string, entryId: string) {
   const token = getToken();
   if (!e) return;
   if (!token) {
-    meta.textContent = "Not sent: add a GitHub token in Settings.";
+    meta.textContent = "Not sent: no GitHub token";
     meta.className = "warn";
     return;
   }
-  meta.textContent = `Sending ${e.name} to the token…`;
+  meta.textContent = `Sending ${e.name}…`;
   meta.className = "";
   try {
     await sendCommand({ id: crypto.randomUUID(), at: new Date().toISOString(), kind: "apply-statblock", itemId, entryName: e.name, forge: e.forge }, token);
-    meta.textContent = `${e.name} sent. The token updates in a few seconds (full HP, max HP, AC and stats).`;
+    meta.textContent = `${e.name} sent to token`;
   } catch (err) {
     meta.textContent = `Not sent: ${err instanceof Error ? err.message : err}`;
     meta.className = "warn";
@@ -915,16 +915,16 @@ function render() {
 async function persistAssignments() {
   const token = getToken();
   if (!token) {
-    meta.textContent = "Choice kept for now, but not saved: add a GitHub token in Settings.";
+    meta.textContent = "Choice not saved: no GitHub token";
     meta.className = "warn";
     return;
   }
   try {
     await saveAssignments(assignments, token);
-    meta.textContent = "Stat block choice saved.";
+    meta.textContent = "Stat block saved";
     meta.className = "";
   } catch (err) {
-    meta.textContent = `Couldn't save the stat block choice: ${err instanceof Error ? err.message : err}`;
+    meta.textContent = `Stat block not saved: ${err instanceof Error ? err.message : err}`;
     meta.className = "warn";
   }
 }
@@ -945,7 +945,7 @@ async function update() {
     ]);
     statuses = st.tokens ?? {};
     meta.textContent = roster.savedAt
-      ? `Saved from Owlbear at ${new Date(roster.savedAt).toLocaleTimeString()} · ${bestiary.length} stat blocks · ${spells.length} spells`
+      ? `Saved at ${new Date(roster.savedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
       : "Nothing saved from Owlbear yet.";
   } catch (err) {
     meta.textContent = `Couldn't load: ${err instanceof Error ? err.message : err}`;

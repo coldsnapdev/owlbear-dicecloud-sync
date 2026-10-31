@@ -48,7 +48,7 @@
       #update-roster:hover { filter: brightness(1.08); }
       #update-roster:active { transform: translateY(2px); box-shadow: 0 0 0 #5c4219, 0 2px 6px rgba(0,0,0,.35); }
       #update-roster:disabled { opacity: .6; cursor: default; }
-      #roster-meta { font-size: 14px; color: var(--ink-soft); font-style: italic; }
+      #roster-meta { font-size: 14px; color: var(--ink-soft); font-style: italic; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       #roster-meta.warn, .warn { color: var(--blood); }
 
       .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 22px; align-items: start; }
