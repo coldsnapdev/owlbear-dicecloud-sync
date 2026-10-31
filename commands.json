@@ -457,6 +457,33 @@
     "id": "dee7edd1-816f-47d8-80b9-fea6da46b6ae",
     "private": false
    }
+  },
+  {
+   "id": "f1691b4e-a87c-4a2b-8d4a-90537b14b785",
+   "at": "2026-10-31T14:09:34.245Z",
+   "kind": "show-roll",
+   "roll": {
+    "who": "Radek",
+    "action": "Longsword",
+    "dice": [
+     {
+      "sides": 8,
+      "value": 6,
+      "tint": "slashing"
+     }
+    ],
+    "mod": 3,
+    "results": [
+     {
+      "value": 9,
+      "label": "slashing",
+      "tint": "slashing"
+     }
+    ],
+    "detail": "1d8+3",
+    "id": "f1691b4e-a87c-4a2b-8d4a-90537b14b785",
+    "private": false
+   }
   }
  ]
 }
