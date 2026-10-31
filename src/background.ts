@@ -1,4 +1,4 @@
-import { LIVE_STATUS_KEY, liveCode, liveTopic, subscribeLive, type LiveSubscription } from "./live";
+import { LIVE_STATUS_KEY, RELAY_STATUS_KEY, listenLocal, liveCode, liveTopic, subscribeLive, type LiveSubscription } from "./live";
 import OBR from "@owlbear-rodeo/sdk";
 import { diceCloudLogin, fetchCreatureStats, fetchCompanionStats, type DiceCloudSession } from "./dicecloud";
 import { writeForgeStats, getCombatRoster } from "./forge";
@@ -72,7 +72,15 @@ let statusBusy = false;
 
 interface MarkerMeta { parent: string; sig: string }
 
-async function reconcileStatuses() {
+// one redraw at a time: the relay and the GitHub poll can both ask for one at once, and
+// two overlapping redraws would each add the same labels
+let statusDraw: Promise<void> = Promise.resolve();
+function reconcileStatuses(): Promise<void> {
+  statusDraw = statusDraw.catch(() => {}).then(drawStatuses);
+  return statusDraw;
+}
+
+async function drawStatuses() {
   if (!statusFile) return;
   const items = await OBR.scene.items.getItems();
   const byId = new Map(items.map((i) => [i.id, i]));
@@ -199,6 +207,32 @@ async function ensureLive(token: string | undefined) {
   );
 }
 
+// the local relay (abelon-relay.js on the GM's computer): the fastest route, for rolls,
+// stat blocks and statuses alike. Runs whether or not the relay is up; it just retries.
+let relay: { close(): void } | undefined;
+function relayState(state: string) {
+  localStorage.setItem(RELAY_STATUS_KEY, JSON.stringify({ state, at: Date.now() }));
+}
+function startRelay() {
+  if (relay) return;
+  relay = listenLocal(
+    "owlbear",
+    (msg) => {
+      if (msg.kind === "statuses") {
+        if (!statusFile?.savedAt || !msg.file.savedAt || msg.file.savedAt >= statusFile.savedAt) {
+          statusFile = msg.file;
+          reconcileStatuses().catch((err) => log("Couldn't draw statuses:", err));
+        }
+        return;
+      }
+      if (doneCommands.has(msg.id)) return;
+      doneCommands.add(msg.id);
+      runCommand(msg).catch((err) => log("Relay command failed:", err));
+    },
+    relayState,
+  );
+}
+
 async function pollCommandFile(token: string) {
   const res = await pollCommands(token, commandEtag);
   if (!res) return;
@@ -221,13 +255,15 @@ async function pollStatusFile() {
   statusBusy = true;
   try {
     if (isGM === undefined) isGM = (await OBR.player.getRole()) === "GM";
+    if (isGM) startRelay();
     const token = getGitHubToken();
     await ensureLive(isGM ? token : undefined);
     if (!isGM || !token) return;
     await pollCommandFile(token).catch((err) => log("Couldn't read panel commands:", err));
     const res = await pollStatuses(token, statusEtag);
     if (res) {
-      statusFile = res.file;
+      // a live copy from the relay may already be newer than what GitHub has caught up to
+      if (!statusFile?.savedAt || !res.file.savedAt || res.file.savedAt >= statusFile.savedAt) statusFile = res.file;
       statusEtag = res.etag;
     }
     await reconcileStatuses();

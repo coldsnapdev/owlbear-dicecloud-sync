@@ -1,4 +1,4 @@
-import { LIVE_STATUS_KEY } from "./live";
+import { LIVE_STATUS_KEY, RELAY_STATUS_KEY } from "./live";
 import OBR, { type Item } from "@owlbear-rodeo/sdk";
 import {
   diceCloudLogin,
@@ -66,10 +66,11 @@ app.innerHTML = `
       <span id="gh-status" class="status"></span>
     </div>
     <p class="hint" style="margin-top:8px;"><a id="dm-panel-link" href="./dm-panel.html" target="_blank" rel="noopener">Open DM panel ↗</a> — works in any browser or device.</p>
+    <p id="relay-status" class="hint"></p>
     <p id="live-status" class="hint"></p>
   </section>
 
-  <p class="hint" style="opacity:0.5;">build 44 — rolls arrive live (ntfy), tray warms up first
+  <p class="hint" style="opacity:0.5;">build 45 — local relay for rolls, stat blocks and statuses
 `;
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;
@@ -83,6 +84,14 @@ const ghTokenInput = document.getElementById("gh-token") as HTMLInputElement;
 const ghStatus = document.getElementById("gh-status")!;
 // live roll channel, as reported by the background page (GM only)
 const liveEl = document.getElementById("live-status")!;
+const relayEl = document.getElementById("relay-status")!;
+function renderRelay() {
+  let st: { state?: string } = {};
+  try { st = JSON.parse(localStorage.getItem(RELAY_STATUS_KEY) || "{}"); } catch { /* none yet */ }
+  relayEl.textContent = !st.state ? "" : st.state === "connected" ? "Local relay: connected — panel commands arrive instantly" : "Local relay: not running";
+}
+renderRelay();
+setInterval(renderRelay, 2000);
 function renderLive() {
   let st: { state?: string; code?: string } = {};
   try { st = JSON.parse(localStorage.getItem(LIVE_STATUS_KEY) || "{}"); } catch { /* none yet */ }

@@ -64,3 +64,94 @@ export function subscribeLive(
 }
 
 export const LIVE_STATUS_KEY = "dicecloud-sync/live-status";
+
+// --- Local relay (abelon-relay.mjs on this computer) --------------------------------------
+// The fastest route, and private: nothing leaves the machine. Used first whenever it's
+// running; if it isn't, everything falls back to ntfy / GitHub as above.
+export const RELAY = "http://127.0.0.1:47917";
+export const RELAY_STATUS_KEY = "dicecloud-sync/relay-status";
+
+export interface StatusesMessage {
+  kind: "statuses";
+  id: string;
+  at: string;
+  file: import("./mailbox").StatusFile;
+}
+export type LiveMessage = PanelCommand | StatusesMessage;
+
+// "loopback" tells Chrome/Opera up front that this goes to this computer (local network access)
+const loopback = { targetAddressSpace: "loopback" } as RequestInit;
+
+/** Sends to the relay. Returns how many listeners got it, or -1 if the relay isn't reachable. */
+export async function sendLocal(to: "owlbear" | "panel", msg: LiveMessage, timeoutMs = 600): Promise<number> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    const r = await fetch(`${RELAY}/send?to=${to}`, { ...loopback, method: "POST", body: JSON.stringify(msg), signal: ctl.signal });
+    if (!r.ok) return -1;
+    return ((await r.json()) as { delivered?: number }).delivered ?? 0;
+  } catch {
+    return -1;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Who's on the relay right now, or undefined if it isn't running. */
+export async function relayStatus(): Promise<{ owlbear: number; panel: number } | undefined> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 600);
+  try {
+    const r = await fetch(`${RELAY}/status`, { ...loopback, signal: ctl.signal, cache: "no-store" });
+    return r.ok ? ((await r.json()) as { owlbear: number; panel: number }) : undefined;
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Listens on the relay. Reconnects on its own (gently: the relay is often simply not
+ * running, and every failed attempt shows up in the browser console).
+ */
+export function listenLocal(
+  role: "owlbear" | "panel",
+  onMessage: (msg: LiveMessage) => void,
+  onState: (state: "connected" | "not running") => void,
+): { close(): void } {
+  let es: EventSource | undefined;
+  let retry: ReturnType<typeof setTimeout> | undefined;
+  let delay = 3000;
+  let closed = false;
+  const connect = () => {
+    if (closed) return;
+    es = new EventSource(`${RELAY}/events?role=${role}`);
+    es.addEventListener("hello", () => {
+      delay = 3000;
+      onState("connected");
+    });
+    es.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data) as LiveMessage;
+        if (msg && typeof msg.id === "string" && typeof msg.kind === "string") onMessage(msg);
+      } catch {
+        // ignore
+      }
+    };
+    es.onerror = () => {
+      es?.close();
+      onState("not running");
+      retry = setTimeout(connect, delay);
+      delay = Math.min(delay * 2, 30000);
+    };
+  };
+  connect();
+  return {
+    close() {
+      closed = true;
+      clearTimeout(retry);
+      es?.close();
+    },
+  };
+}
