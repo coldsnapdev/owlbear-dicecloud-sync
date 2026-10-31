@@ -1,0 +1,77 @@
+{
+ "commands": [
+  {
+   "id": "856e0283-ef36-4677-a26b-cba2d3b33332",
+   "at": "2026-10-31T11:07:02.741Z",
+   "kind": "apply-statblock",
+   "itemId": "0ca300c3-9fd8-4017-923f-2ab85b976457",
+   "entryName": "Idony",
+   "forge": {
+    "com.battle-system.forge/name": "Idony",
+    "com.battle-system.forge/Z034": [],
+    "com.battle-system.forge/Z035": [
+     {
+      "id": "idony-001",
+      "name": "Trait: Sneak Attack",
+      "description": "Once per turn, Idony deals an extra [1d6] damage when she has advantage or an ally is adjacent to the target."
+     },
+     {
+      "id": "idony-002",
+      "name": "Shortsword",
+      "description": "Melee Weapon Attack [1d20+4] to hit, reach 5 ft., one target. [1d6+2] piercing damage. Add [1d6] sneak attack if advantage or ally adjacent."
+     },
+     {
+      "id": "idony-003",
+      "name": "Dagger (thrown)",
+      "description": "Ranged Weapon Attack [1d20+4] to hit, range 20/60 ft., one target. [1d4+2] piercing damage."
+     },
+     {
+      "id": "idony-004",
+      "name": "Bonus Action: Cunning Action",
+      "description": "Idony can take the Dash, Disengage, or Hide action as a bonus action."
+     }
+    ],
+    "com.battle-system.forge/Z003": "Neutral Good",
+    "com.battle-system.forge/Z007": 13,
+    "com.battle-system.forge/Z036": [],
+    "com.battle-system.forge/Z010": 0,
+    "com.battle-system.forge/Z028": 0,
+    "com.battle-system.forge/Z025": 0,
+    "com.battle-system.forge/Z016": 0.25,
+    "com.battle-system.forge/Z022": 11,
+    "com.battle-system.forge/Z011": 0,
+    "com.battle-system.forge/Z019": 11,
+    "com.battle-system.forge/Z024": 2,
+    "com.battle-system.forge/Z018": 15,
+    "com.battle-system.forge/Z012": 0,
+    "com.battle-system.forge/Z005": 8,
+    "com.battle-system.forge/Z026": 1,
+    "com.battle-system.forge/Z032": "",
+    "com.battle-system.forge/Z020": 12,
+    "com.battle-system.forge/Z040": [],
+    "com.battle-system.forge/Z015": "Common",
+    "com.battle-system.forge/Z038": [],
+    "com.battle-system.forge/Z001": 0,
+    "com.battle-system.forge/Z006": 8,
+    "com.battle-system.forge/Z029": 2,
+    "com.battle-system.forge/Z037": [],
+    "com.battle-system.forge/Z031": "",
+    "com.battle-system.forge/Z023": 0,
+    "com.battle-system.forge/Z041": "",
+    "com.battle-system.forge/Z013": "Passive Perception 13",
+    "com.battle-system.forge/Z002": "Medium",
+    "com.battle-system.forge/Z014": "Stealth +4, Perception +3",
+    "com.battle-system.forge/Z004": "Humanoid",
+    "com.battle-system.forge/Z039": [],
+    "com.battle-system.forge/Z033": "",
+    "com.battle-system.forge/Z017": 10,
+    "com.battle-system.forge/Z009": 0,
+    "com.battle-system.forge/Z042": 0,
+    "com.battle-system.forge/Z030": "",
+    "com.battle-system.forge/Z027": 1,
+    "com.battle-system.forge/Z008": 30,
+    "com.battle-system.forge/Z021": 13
+   }
+  }
+ ]
+}
