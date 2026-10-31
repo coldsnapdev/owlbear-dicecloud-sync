@@ -4,7 +4,7 @@
 // (see mailbox.ts), matches each combatant to a bestiary entry from the DM
 // manual, lets the DM roll from the stat block, and posts the results to
 // Discord with flavour text (and full spell text) for the table.
-import { liveCode, liveTopic, owlbearWindow, publishLive, relayStatus, sendDirect, sendLocal, type LiveMessage } from "./live";
+import { liveCode, liveTopic, onOwlbear, owlbearWindow, publishLive, relayStatus, sendDirect, sendLocal, type LiveCombatant, type LiveMessage } from "./live";
 import {
   loadAssignments,
   loadBestiary,
@@ -126,10 +126,74 @@ async function showLink() {
   setTimeout(showLink, 5000);
 }
 showLink();
+
+// --- Live from Owlbear: the roster (with HP) and the GM's selection ---------------------
+let liveRoster: LiveCombatant[] | undefined;
+let lastLiveFp = "";
+const asEntry = (c: LiveCombatant): RosterEntry => ({ itemId: c.itemId, name: c.name, realName: c.realName, initiative: c.initiative, ac: c.ac, hp: c.hp, maxHp: c.maxHp, tempHp: c.tempHp });
+onOwlbear((m) => {
+  if (m.kind === "roster") {
+    $("forge-info").textContent = m.forgeInfo || "(nothing beyond the stat keys)";
+    const fp = JSON.stringify(m.combatants);
+    if (fp === lastLiveFp) return;
+    lastLiveFp = fp;
+    liveRoster = m.combatants;
+    roster = { savedAt: new Date().toISOString(), combatants: m.combatants.map(asEntry) };
+    const ids = new Set(m.combatants.map((c) => c.itemId));
+    if (targets.some((id) => !ids.has(id))) setTargets(targets.filter((id) => ids.has(id)));
+    meta.textContent = "Live from Owlbear";
+    meta.className = "";
+    if (!busyTyping()) render();
+  } else if (m.kind === "selection") {
+    if (!followSelection()) return;
+    const onList = m.ids.filter((id) => roster?.combatants.some((c) => c.itemId === id));
+    if (onList.length) setTargets(onList); // clicking empty map space doesn't clear your targets
+  }
+});
+// don't redraw under someone typing a custom status
+const busyTyping = () => document.activeElement instanceof HTMLInputElement && document.activeElement.classList.contains("st-custom");
+
+// --- Targets ----------------------------------------------------------------------------
+let targets: string[] = [];
+const FOLLOW_KEY = "dm-panel/follow-selection";
+const followSelection = () => read(FOLLOW_KEY) !== "no";
+function setTargets(ids: string[]) {
+  targets = [...new Set(ids)];
+  fastSend({ kind: "targets", id: crypto.randomUUID(), at: new Date().toISOString(), ids: targets });
+  render();
+}
+const combatant = (id: string) => roster?.combatants.find((c) => c.itemId === id);
+function targetBar(): string {
+  const chips = targets.map((id) => combatant(id)).filter((c): c is RosterEntry => !!c);
+  return `<div class="target-bar"><span class="tb-label">Target${chips.length === 1 ? "" : "s"}</span>${
+    chips.length
+      ? chips.map((c) => `<span class="tb-chip">${escapeHtml(c.realName || c.name)}${c.ac !== undefined ? ` <small>AC ${c.ac}</small>` : ""}<button type="button" class="tb-x" data-id="${escapeHtml(c.itemId)}" title="Drop this target">×</button></span>`).join("") +
+        `<button type="button" class="tb-clear">Clear</button>`
+      : `<span class="tb-hint">${owlbearWindow() ? "Select tokens in Owlbear, or tap ◎ on a tile" : "Tap ◎ on a tile"}</span>`
+  }</div>`;
+}
+/** "hits Idony, misses Radek" against each target's AC; undefined when nobody's targeted. */
+function versus(total: number, nat?: "crit" | "fumble"): { dm: string; pub: string; tag: string } | undefined {
+  const list = targets.map((id) => combatant(id)).filter((c): c is RosterEntry => !!c);
+  if (!list.length) return undefined;
+  const rows = list.map((c) => {
+    const hit = nat === "crit" ? true : nat === "fumble" ? false : c.ac === undefined ? undefined : total >= c.ac;
+    return { c, hit };
+  });
+  const word = (h: boolean | undefined) => (h === undefined ? "vs" : h ? "hits" : "misses");
+  return {
+    dm: rows.map(({ c, hit }) => `${word(hit)} <b>${escapeHtml(c.realName || c.name)}</b>${c.ac !== undefined ? ` <span class="how">AC ${c.ac}</span>` : ""}`).join(", "),
+    pub: rows.map(({ c, hit }) => `${hit === undefined ? "Against" : hit ? "Hits" : "Misses"} ${c.name}`).join(" · "),
+    tag: rows.map(({ c, hit }) => `${hit === undefined ? "vs" : hit ? "Hits" : "Misses"} ${c.name}`).join(" · "),
+  };
+}
 async function showLiveCode() {
   const token = getToken();
   $("live-code").textContent = token ? `Live roll channel: ${liveCode(await liveTopic(token))} (should match the code in the Owlbear extension)` : "";
 }
+const followToggle = $<HTMLInputElement>("follow-selection");
+followToggle.checked = followSelection();
+followToggle.addEventListener("change", () => store(FOLLOW_KEY, followToggle.checked ? undefined : "no"));
 const diceToggle = $<HTMLInputElement>("dice-owlbear");
 diceToggle.checked = read("dm-panel/dice-in-owlbear") !== "no";
 diceToggle.addEventListener("change", () => store("dm-panel/dice-in-owlbear", diceToggle.checked ? undefined : "no"));
@@ -417,18 +481,19 @@ function doAttack(ctx: ActionCtx, mode?: "adv" | "dis") {
   else critPending.delete(ctx.key);
   const how = r.kept !== undefined ? `d20 ${r.dice.join(" / ")} ${mode === "adv" ? "with advantage" : "with disadvantage"}${signed(r.mod)}` : `d20 ${d20}${signed(r.mod)}`;
   const tag = nat === "crit" ? "Natural 20!" : nat === "fumble" ? "Natural 1" : "";
+  const vs = versus(r.total, nat);
   lastResult.set(`${ctx.key}|hit`, `<b>${r.total}</b>${tag ? ` <em class="${nat}">${tag}</em>` : ""}`);
   freshKey = `${ctx.key}|hit`;
   log(
-    { who: ctx.dmName, action: ctx.p.title, text: `<span class="big">${r.total}</span> to hit <span class="how">${how}</span>${tag ? ` <em class="${nat}">${tag}</em>` : ""}`, tone: nat },
+    { who: ctx.dmName, action: ctx.p.title, text: `<span class="big">${r.total}</span> to hit <span class="how">${how}</span>${tag ? ` <em class="${nat}">${tag}</em>` : ""}${vs ? `<br>${vs.dm}` : ""}`, tone: nat },
     {
       author: { name: ctx.shown },
       title: publicName(ctx),
-      description: `${describe(ctx)}\n\n**To hit: ${r.total}** (${how})${tag ? ` — **${tag}**` : ""}`,
+      description: `${describe(ctx)}\n\n**To hit: ${r.total}** (${how})${tag ? ` — **${tag}**` : ""}${vs ? `\n**${vs.pub}**` : ""}`,
       color: nat ? COLOUR[nat] : COLOUR.brass,
     },
     undefined,
-    { who: ctx.shown, action: publicName(ctx), dice: d20s(r, "brass"), mod: r.mod, results: [{ value: r.total, label: "to hit" }], detail: how, tag: tag.replace("!", "") || undefined, tone: nat },
+    { who: ctx.shown, action: publicName(ctx), dice: d20s(r, "brass"), mod: r.mod, results: [{ value: r.total, label: "to hit" }], detail: how, tag: [tag.replace("!", ""), vs?.tag].filter(Boolean).join(" · ") || undefined, tone: nat },
   );
 }
 
@@ -841,6 +906,13 @@ async function applyToToken(itemId: string, entryId: string) {
   }
 }
 
+function hpBar(c: RosterEntry): string {
+  if (c.hp === undefined || !c.maxHp) return "";
+  const pct = Math.max(0, Math.min(100, (c.hp / c.maxHp) * 100));
+  const tone = pct <= 25 ? "low" : pct <= 50 ? "mid" : "";
+  return `<span class="pc-hp ${tone}" title="${c.hp}/${c.maxHp} HP${c.tempHp ? ` (+${c.tempHp} temp)` : ""}"><i style="width:${pct.toFixed(0)}%"></i>${c.tempHp ? `<b></b>` : ""}</span>`;
+}
+
 function render() {
   renderLog();
   actions.clear();
@@ -869,6 +941,7 @@ function render() {
             <span class="who"><span class="name">${escapeHtml(c.realName || c.name)}</span>${alias}</span>
             ${headChips(c.itemId)}
             ${tag}
+            ${c.hp !== undefined ? `<span class="hpv" title="Hit points (live from Owlbear)"><span><small>HP</small>${c.hp}${c.maxHp !== undefined ? `/${c.maxHp}` : ""}${c.tempHp ? ` <small class="tmp">+${c.tempHp}</small>` : ""}</span></span>` : ""}
             <span class="ac" title="Armour class"><small>AC</small>${c.ac ?? "–"}</span>
             <span class="chev" aria-hidden="true"></span>
           </button>
@@ -891,12 +964,22 @@ function render() {
     .map((c) => {
       const { entry } = entryFor(c);
       const alias = c.realName && c.realName !== c.name ? ` (shown as ${c.name})` : "";
-      return `<button type="button" class="pc-pill ${open.has(c.itemId) ? "on" : ""} ${entry ? "npc" : "party"}" data-id="${escapeHtml(c.itemId)}" title="${escapeHtml((c.realName || c.name) + alias)}"><span class="pc-name">${escapeHtml(c.realName || c.name)}</span><span class="pc-init">${c.initiative}</span>${headChips(c.itemId)}</button>`;
+      const tgt = targets.includes(c.itemId);
+      return `<button type="button" class="pc-pill ${open.has(c.itemId) ? "on" : ""} ${entry ? "npc" : "party"} ${tgt ? "targeted" : ""}" data-id="${escapeHtml(c.itemId)}" title="${escapeHtml((c.realName || c.name) + alias)}"><span class="tgt" data-tgt="${escapeHtml(c.itemId)}" title="${tgt ? "Untarget" : "Target"}">◎</span><span class="pc-name">${escapeHtml(c.realName || c.name)}</span><span class="pc-init">${c.initiative}</span>${hpBar(c)}${headChips(c.itemId)}</button>`;
     })
     .join("")}</div>`;
-  app.innerHTML = tiles + roster.combatants.filter((c) => open.has(c.itemId)).map(card).join("");
+  app.innerHTML = tiles + targetBar() + roster.combatants.filter((c) => open.has(c.itemId)).map(card).join("");
   freshKey = undefined;
 
+  app.querySelectorAll<HTMLElement>(".tgt").forEach((t) =>
+    t.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = t.dataset.tgt!;
+      setTargets(targets.includes(id) ? targets.filter((x) => x !== id) : [...targets, id]);
+    }),
+  );
+  app.querySelectorAll<HTMLButtonElement>(".tb-x").forEach((b) => b.addEventListener("click", () => setTargets(targets.filter((x) => x !== b.dataset.id))));
+  app.querySelector<HTMLButtonElement>(".tb-clear")?.addEventListener("click", () => setTargets([]));
   app.querySelectorAll<HTMLButtonElement>("button.pc-pill").forEach((b) =>
     b.addEventListener("click", () => {
       const id = b.dataset.id!;
@@ -1049,7 +1132,10 @@ async function update() {
       loadStatuses(token).catch(() => ({ savedAt: null, tokens: {} })),
     ]);
     statuses = st.tokens ?? {};
-    meta.textContent = roster.savedAt
+    if (liveRoster) roster = { savedAt: new Date().toISOString(), combatants: liveRoster.map(asEntry) }; // live beats the saved copy
+    meta.textContent = liveRoster
+      ? "Live from Owlbear"
+      : roster.savedAt
       ? `Saved at ${new Date(roster.savedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
       : "Nothing saved from Owlbear yet.";
   } catch (err) {

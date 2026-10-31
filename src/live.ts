@@ -77,7 +77,30 @@ export interface StatusesMessage {
   at: string;
   file: import("./mailbox").StatusFile;
 }
-export type LiveMessage = PanelCommand | StatusesMessage;
+/** Who the DM is aiming at: drawn as a ring on each target's token, for everyone to see. */
+export interface TargetsMessage {
+  kind: "targets";
+  id: string;
+  at: string;
+  ids: string[];
+}
+export type LiveMessage = PanelCommand | StatusesMessage | TargetsMessage;
+
+/** One combatant as Owlbear sees it right now (live link only: HP never goes to GitHub). */
+export interface LiveCombatant {
+  itemId: string;
+  name: string;
+  realName?: string;
+  initiative: number;
+  ac?: number;
+  hp?: number;
+  maxHp?: number;
+  tempHp?: number;
+}
+/** Owlbear → panel, over the direct link. */
+export type OwlbearMessage =
+  | { kind: "roster"; combatants: LiveCombatant[]; forgeInfo?: string }
+  | { kind: "selection"; ids: string[] };
 
 // "loopback" tells Chrome/Opera up front that this goes to this computer (local network access)
 const loopback = { targetAddressSpace: "loopback" } as RequestInit;
@@ -164,15 +187,21 @@ export function listenLocal(
 // only our own extension's page (same origin) can receive it, and it answers each message.
 export const LINK_STATUS_KEY = "dicecloud-sync/link-status";
 export interface LinkEnvelope {
-  abelon: "panel-msg" | "ack" | "hello";
+  abelon: "panel-msg" | "ack" | "hello" | "owlbear-msg";
   ref: string;
   msg?: LiveMessage | { kind: "ping"; id: string; at: string };
+  fromOwlbear?: OwlbearMessage;
 }
 
 // The Owlbear tab. Captured the moment the panel opens (the extension window that opened it
 // closes with its popover), then refreshed from Owlbear's own "hello" messages, which is
 // what re-links the panel after either side reloads.
 let owlbearTop: Window | undefined;
+const owlbearListeners: ((m: OwlbearMessage) => void)[] = [];
+/** Panel side: hear what Owlbear sends back (the live roster, the GM's selection). */
+export function onOwlbear(fn: (m: OwlbearMessage) => void) {
+  owlbearListeners.push(fn);
+}
 try {
   owlbearTop = (window.opener?.top as Window | undefined) ?? undefined;
 } catch {
@@ -181,12 +210,14 @@ try {
 if (typeof window !== "undefined") {
   window.addEventListener("message", (e) => {
     const d = e.data as LinkEnvelope;
-    if (e.origin !== location.origin || d?.abelon !== "hello" || !e.source) return;
+    if (e.origin !== location.origin || !e.source) return;
+    if (d?.abelon !== "hello" && d?.abelon !== "owlbear-msg") return;
     try {
       owlbearTop = (e.source as Window).top ?? undefined;
     } catch {
       // ignore
     }
+    if (d.abelon === "owlbear-msg" && d.fromOwlbear) owlbearListeners.forEach((fn) => fn(d.fromOwlbear!));
   });
 }
 

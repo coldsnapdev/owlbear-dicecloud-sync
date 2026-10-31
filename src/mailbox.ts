@@ -29,6 +29,10 @@ export interface RosterEntry {
   realName?: string;
   initiative: number;
   ac?: number;
+  /** Live link only: HP is never written to the (public) GitHub mailbox. */
+  hp?: number;
+  maxHp?: number;
+  tempHp?: number;
 }
 
 export interface RosterFile {

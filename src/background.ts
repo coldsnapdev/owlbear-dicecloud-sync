@@ -1,10 +1,10 @@
-import { LINK_STATUS_KEY, LIVE_STATUS_KEY, RELAY_STATUS_KEY, listenLocal, type LinkEnvelope, type LiveMessage, liveCode, liveTopic, subscribeLive, type LiveSubscription } from "./live";
+import { LINK_STATUS_KEY, LIVE_STATUS_KEY, RELAY_STATUS_KEY, listenLocal, type LinkEnvelope, type LiveCombatant, type LiveMessage, type OwlbearMessage, liveCode, liveTopic, subscribeLive, type LiveSubscription } from "./live";
 import OBR from "@owlbear-rodeo/sdk";
 import { diceCloudLogin, fetchCreatureStats, fetchCompanionStats, type DiceCloudSession } from "./dicecloud";
 import { writeForgeStats, getCombatRoster } from "./forge";
 import { getStoredCredentials, reconcileMappings, type Mapping } from "./config";
 import { getGitHubToken, rosterFingerprint, saveRoster, toRosterEntries, pollStatuses, pollCommands, type StatusFile, type PanelCommand } from "./mailbox";
-import { buildLabel, type Item } from "@owlbear-rodeo/sdk";
+import { buildLabel, buildShape, type Item } from "@owlbear-rodeo/sdk";
 import { statusDef, tokenText, CUSTOM_COLOUR } from "./statuses";
 import { DICE_CHANNEL, DICE_SHOW_MS, type ShownRoll } from "./diceTypes";
 
@@ -227,9 +227,105 @@ function handleLiveMessage(msg: LiveMessage) {
     }
     return;
   }
+  if (msg.kind === "targets") {
+    targetIds = msg.ids;
+    reconcileTargets().catch((err) => log("Couldn't draw targets:", err));
+    return;
+  }
   if (doneCommands.has(msg.id)) return;
   doneCommands.add(msg.id);
   runCommand(msg).catch((err) => log("Panel command failed:", err));
+}
+
+// --- Targets: a dashed ring round each token the DM is aiming at, seen by everyone --------
+const TARGET_KEY = "com.abelon.target/ring";
+let targetIds: string[] = [];
+let targetDraw: Promise<void> = Promise.resolve();
+function reconcileTargets(): Promise<void> {
+  targetDraw = targetDraw.catch(() => {}).then(drawTargets);
+  return targetDraw;
+}
+async function drawTargets() {
+  if (!(await OBR.scene.isReady())) return;
+  const items = await OBR.scene.items.getItems();
+  const present = new Set(items.map((i) => i.id));
+  const rings = items.filter((i) => i.metadata[TARGET_KEY]);
+  const want = new Set(targetIds.filter((id) => present.has(id)));
+  const stale = rings.filter((r) => !want.has((r.metadata[TARGET_KEY] as { parent: string }).parent)).map((r) => r.id);
+  const have = new Set(rings.map((r) => (r.metadata[TARGET_KEY] as { parent: string }).parent));
+  const dpi = await OBR.scene.grid.getDpi();
+  const add: Item[] = [];
+  for (const id of want) {
+    if (have.has(id)) continue;
+    const b = await OBR.scene.items.getItemBounds([id]);
+    const size = Math.max(b.width, b.height) * 1.18;
+    add.push(
+      buildShape()
+        .shapeType("CIRCLE")
+        .width(size)
+        .height(size)
+        .position(b.center)
+        .fillOpacity(0)
+        .strokeColor("#e0533d")
+        .strokeOpacity(0.95)
+        .strokeWidth(Math.max(3, Math.round(dpi * 0.045)))
+        .strokeDash([Math.round(dpi * 0.14), Math.round(dpi * 0.07)])
+        .attachedTo(id)
+        .layer("ATTACHMENT")
+        .locked(true)
+        .disableHit(true)
+        .disableAttachmentBehavior(["ROTATION", "COPY"])
+        .metadata({ [TARGET_KEY]: { parent: id } })
+        .build(),
+    );
+  }
+  if (stale.length) await OBR.scene.items.deleteItems(stale);
+  if (add.length) await OBR.scene.items.addItems(add);
+}
+
+// --- Owlbear → panel: the live roster (with HP) and the GM's selection -----------------
+function sendToPanel(m: OwlbearMessage) {
+  try {
+    if (panelWindow && !panelWindow.closed) panelWindow.postMessage({ abelon: "owlbear-msg", ref: "", fromOwlbear: m } satisfies LinkEnvelope, location.origin);
+  } catch {
+    panelWindow = undefined;
+  }
+}
+let lastRosterSent = "";
+async function pushRoster(force = false) {
+  if (!panelWindow || !(await OBR.scene.isReady())) return;
+  const items = await OBR.scene.items.getItems();
+  const combatants: LiveCombatant[] = getCombatRoster(items).map((c) => ({
+    itemId: c.itemId, name: c.name, realName: c.realName, initiative: c.initiative,
+    ac: c.ac, hp: c.currentHP, maxHp: c.maxHP, tempHp: c.tempHP,
+  }));
+  const forgeInfo = await forgeDiagnostics(items);
+  const fp = JSON.stringify([combatants, forgeInfo]);
+  if (!force && fp === lastRosterSent) return;
+  lastRosterSent = fp;
+  sendToPanel({ kind: "roster", combatants, forgeInfo });
+}
+// What Forge stores beyond the stat keys (looking for where it keeps whose turn it is)
+async function forgeDiagnostics(items: Item[]): Promise<string> {
+  const short = (v: unknown) => JSON.stringify(v)?.slice(0, 80);
+  const scene = Object.entries(await OBR.scene.getMetadata()).filter(([k]) => /forge|battle/i.test(k)).map(([k, v]) => `scene ${k} = ${short(v)}`);
+  const room = Object.entries(await OBR.room.getMetadata()).filter(([k]) => /forge|battle/i.test(k)).map(([k, v]) => `room ${k} = ${short(v)}`);
+  const itemKeys = new Set<string>();
+  for (const i of items) for (const k of Object.keys(i.metadata)) if (/forge|battle/i.test(k) && !/\/Z0\d\d$/.test(k)) itemKeys.add(`${k} = ${short(i.metadata[k])}`);
+  return [...scene, ...room, ...[...itemKeys].slice(0, 25)].join("\n");
+}
+let selectionListening = false;
+function listenSelection() {
+  if (selectionListening) return;
+  selectionListening = true;
+  let last = "";
+  OBR.player.onChange((p) => {
+    const ids = p.selection ?? [];
+    const key = ids.join(",");
+    if (key === last) return;
+    last = key;
+    sendToPanel({ kind: "selection", ids });
+  });
 }
 
 // the direct link: a panel opened from this extension's link posts straight to this page
@@ -250,7 +346,13 @@ function startDirectLink() {
   window.addEventListener("message", (e) => {
     const d = e.data as LinkEnvelope;
     if (e.origin !== location.origin || d?.abelon !== "panel-msg" || !d.msg) return;
+    const fresh = e.source !== panelWindow;
     panelWindow = (e.source as Window | null) ?? panelWindow;
+    if (fresh) {
+      listenSelection();
+      pushRoster(true).catch(() => {});
+      reconcileTargets().catch(() => {});
+    }
     panelWindow?.postMessage({ abelon: "ack", ref: d.ref } satisfies LinkEnvelope, location.origin);
     localStorage.setItem(LINK_STATUS_KEY, JSON.stringify({ state: "linked", at: Date.now() }));
     if (d.msg.kind === "ping") return;
@@ -449,6 +551,7 @@ function attachItemChangeListener() {
   itemChangeListenerAttached = true;
   OBR.scene.items.onChange(() => {
     checkRoster();
+    pushRoster().catch(() => {});
   });
 }
 
