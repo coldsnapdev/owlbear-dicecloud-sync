@@ -74,9 +74,9 @@ async function reconcileStatuses() {
   const byId = new Map(items.map((i) => [i.id, i]));
   const existing = items.filter((i) => i.metadata[MARKER_KEY]);
   const dpi = await OBR.scene.grid.getDpi();
-  const fontSize = Math.round(dpi * 0.16);
+  const fontSize = Math.round(dpi * 0.08);
   const padding = Math.round(fontSize * 0.35);
-  const row = fontSize * 1.25 + padding * 2 + Math.round(dpi * 0.04);
+  const row = fontSize * 1.25 + padding * 2 + Math.round(dpi * 0.02);
 
   const wanted: { parent: string; sig: string; build: () => Promise<Item> }[] = [];
   for (const [parentId, list] of Object.entries(statusFile.tokens)) {
@@ -104,7 +104,7 @@ async function reconcileStatuses() {
             .pointerWidth(0)
             .pointerHeight(0)
             .pointerDirection("UP")
-            .position({ x: b.center.x, y: b.max.y + Math.round(dpi * 0.06) + i * row })
+            .position({ x: b.center.x, y: b.max.y + Math.round(dpi * 0.03) + i * row })
             .attachedTo(parentId)
             .layer("ATTACHMENT")
             .locked(true)

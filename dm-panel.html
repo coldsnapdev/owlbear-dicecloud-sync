@@ -108,12 +108,14 @@
       .defences { margin: 10px 0 0; font-size: 13px; color: var(--ink-soft); display: grid; gap: 3px; }
       .defences b { font: 600 11px/1 Cinzel, serif; letter-spacing: .06em; color: var(--brass); margin-right: 6px; text-transform: uppercase; }
       .pc-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-      .pc-pill { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px; border-radius: 20px; background: var(--panel); border: 1px solid var(--line); color: var(--ink); font: inherit; font-size: 15px; cursor: pointer; }
+      .pc-pill { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; min-width: 92px; max-width: 150px; padding: 7px 10px 6px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); border-top: 3px solid #c9a25e; color: var(--ink); font: inherit; cursor: pointer; }
+      .pc-pill.party { border-top-color: #5fb39b; }
       .pc-pill:hover { border-color: var(--brass-deep); }
       .pc-pill.on { border-color: var(--brass); box-shadow: 0 0 0 1px var(--brass) inset; }
-      .pc-init { display: inline-grid; place-items: center; min-width: 26px; height: 26px; border-radius: 13px; background: #5fb39b; color: #10201b; font-weight: 700; font-size: 13px; padding: 0 4px; }
-      .pc-pill .st-mini { margin-left: 0; }
-      .pc-check { display: flex; margin: 0 0 8px; }
+      .pc-name { font-size: 14px; font-weight: 600; line-height: 1.15; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+      .pc-init { font: 600 18px/1 Cinzel, serif; color: var(--brass); }
+      .pc-pill.party .pc-init { color: #5fb39b; }
+      .pc-pill .st-mini { margin: 2px 0 0; justify-content: center; }
       .statuses { margin: 10px 0 4px; }
       .st-row { display: flex; flex-wrap: wrap; gap: 6px; }
       .st-none { color: var(--ink-faint); font-size: 13px; font-style: italic; }
