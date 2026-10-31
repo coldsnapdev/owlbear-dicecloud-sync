@@ -564,6 +564,32 @@
     "id": "bb17955c-4f55-4c4d-921c-cecd852a7158",
     "private": false
    }
+  },
+  {
+   "id": "bdbff647-c3a8-4c40-a7dc-807f46aedaee",
+   "at": "2026-10-31T14:32:35.306Z",
+   "kind": "show-roll",
+   "roll": {
+    "who": "Idony",
+    "action": "Dagger",
+    "dice": [
+     {
+      "sides": 20,
+      "value": 9,
+      "tint": "brass"
+     }
+    ],
+    "mod": 4,
+    "results": [
+     {
+      "value": 13,
+      "label": "to hit"
+     }
+    ],
+    "detail": "d20 9 + 4",
+    "id": "bdbff647-c3a8-4c40-a7dc-807f46aedaee",
+    "private": false
+   }
   }
  ]
 }
