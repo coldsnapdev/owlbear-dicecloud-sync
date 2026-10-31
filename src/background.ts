@@ -106,7 +106,7 @@ async function reconcileStatuses() {
             .pointerWidth(0)
             .pointerHeight(0)
             .pointerDirection("UP")
-            .position({ x: b.center.x, y: b.max.y + Math.round(dpi * 0.2) // clear Owlbear's name plate under the token + i * row })
+            .position({ x: b.center.x, y: b.max.y + Math.round(dpi * 0.2) + i * row }) // 0.2 grid clears the name plate
             .attachedTo(parentId)
             .layer("ATTACHMENT")
             .locked(true)
