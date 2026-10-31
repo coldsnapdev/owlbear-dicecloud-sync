@@ -5,6 +5,7 @@ import { getStoredCredentials, reconcileMappings, type Mapping } from "./config"
 import { getGitHubToken, rosterFingerprint, saveRoster, toRosterEntries, pollStatuses, pollCommands, type StatusFile, type PanelCommand } from "./mailbox";
 import { buildLabel, type Item } from "@owlbear-rodeo/sdk";
 import { statusDef, tokenText, CUSTOM_COLOUR } from "./statuses";
+import { DICE_CHANNEL, DICE_SHOW_MS, type ShownRoll } from "./diceTypes";
 
 // How often to re-check DiceCloud. A few seconds is plenty for HP/AC
 // tracking and stays well clear of anything that could look like abuse of
@@ -60,7 +61,7 @@ async function checkRoster() {
 // label per status under each token, as an attachment (moves with the token, is
 // deleted with it). DM-only statuses are hidden items, which only the GM sees.
 // Our own markers carry MARKER_KEY so we never touch anyone else's items.
-const STATUS_POLL_MS = 4000;
+const STATUS_POLL_MS = 2000; // also how quickly panel rolls reach the table (unchanged polls cost nothing)
 const MARKER_KEY = "com.abelon.status/marker";
 // Bump when the label look changes, so labels already on tokens get redrawn.
 const LABEL_STYLE = 6;
@@ -146,6 +147,11 @@ let commandEtag: string | undefined;
 const doneCommands = new Set<string>(JSON.parse(localStorage.getItem(DONE_KEY) || "[]") as string[]);
 
 async function runCommand(cmd: PanelCommand) {
+  if (cmd.kind === "show-roll") {
+    if (Date.now() - new Date(cmd.at).getTime() > 30_000) return; // a roll that's late is a roll nobody wants
+    await OBR.broadcast.sendMessage(DICE_CHANNEL, cmd.roll, { destination: cmd.roll.private ? "LOCAL" : "ALL" });
+    return;
+  }
   if (cmd.kind !== "apply-statblock") return;
   const exists = (await OBR.scene.items.getItems([cmd.itemId])).length > 0;
   if (!exists) {
@@ -216,6 +222,49 @@ function startStatusPolling() {
 function stopStatusPolling() {
   if (statusHandle) clearInterval(statusHandle);
   statusHandle = undefined;
+}
+
+// --- Dice tray (runs for every player) ------------------------------------------------
+// Each client shows rolls it's sent as a transparent popover over the map, one at a time.
+const DICE_POPOVER = "com.abelon.dice/tray";
+const diceQueue: ShownRoll[] = [];
+let diceBusy = false;
+async function showNextRoll() {
+  if (diceBusy) return;
+  const roll = diceQueue.shift();
+  if (!roll) return;
+  diceBusy = true;
+  try {
+    const [w, h] = await Promise.all([OBR.viewport.getWidth(), OBR.viewport.getHeight()]);
+    const width = Math.min(640, Math.round(w * 0.9));
+    const height = Math.round(width * 0.62);
+    await OBR.popover.open({
+      id: DICE_POPOVER,
+      url: `${new URL("dice.html", location.href).href}#${encodeURIComponent(JSON.stringify(roll))}`,
+      width,
+      height,
+      anchorReference: "POSITION",
+      anchorPosition: { left: Math.round(w / 2), top: Math.round(h * 0.58) },
+      anchorOrigin: { horizontal: "CENTER", vertical: "CENTER" },
+      transformOrigin: { horizontal: "CENTER", vertical: "CENTER" },
+      hidePaper: true,
+      marginThreshold: 0,
+    });
+    await new Promise((r) => setTimeout(r, DICE_SHOW_MS));
+    await OBR.popover.close(DICE_POPOVER);
+  } catch (err) {
+    log("Couldn't show dice:", err);
+  } finally {
+    diceBusy = false;
+    if (diceQueue.length) setTimeout(showNextRoll, 150);
+  }
+}
+function listenForDice() {
+  OBR.broadcast.onMessage(DICE_CHANNEL, (event) => {
+    diceQueue.push(event.data as ShownRoll);
+    diceQueue.splice(0, Math.max(0, diceQueue.length - 3)); // never fall far behind the fight
+    showNextRoll();
+  });
 }
 
 function log(...args: unknown[]) {
@@ -315,6 +364,7 @@ function attachItemChangeListener() {
 
 OBR.onReady(async () => {
   log("Extension background ready.");
+  listenForDice();
 
   if (await OBR.scene.isReady()) {
     startPolling();

@@ -19,8 +19,10 @@ import {
   saveStatuses,
   sendCommand,
   type TokenStatus,
+  type ShowRollCommand,
 } from "./mailbox";
 import { STATUS_DEFS, statusDef, tokenText, CUSTOM_COLOUR } from "./statuses";
+import type { ShownDie, ShownRoll } from "./diceTypes";
 
 const F = "com.battle-system.forge/";
 const TOKEN_KEY = "dm-panel/github-token";
@@ -102,6 +104,10 @@ chipsToggle.addEventListener("change", () => {
   document.body.classList.toggle("hide-tile-status", !chipsToggle.checked);
 });
 
+const diceToggle = $<HTMLInputElement>("dice-owlbear");
+diceToggle.checked = read("dm-panel/dice-in-owlbear") !== "no";
+diceToggle.addEventListener("change", () => store("dm-panel/dice-in-owlbear", diceToggle.checked ? undefined : "no"));
+
 publicToggle.addEventListener("change", () => {
   store(PUBLIC_KEY, publicToggle.checked ? undefined : "no");
   renderSettings();
@@ -137,7 +143,7 @@ function entryFor(c: RosterEntry): { entry?: BestiaryEntry; manual: boolean } {
 // answers, so the panel never compares against AC itself.
 const DICE_RE = /^(\d*)d(\d+)\s*([+-]\s*\d+)?$/i;
 
-interface Roll { total: number; dice: number[]; mod: number; kept?: number }
+interface Roll { total: number; dice: number[]; mod: number; kept?: number; sides: number }
 
 function randInt(sides: number): number {
   const buf = new Uint32Array(1);
@@ -156,10 +162,10 @@ function rollExpr(expr: string, opts: { double?: boolean; mode?: "adv" | "dis" }
   if (sides === 20 && count === 1 && opts.mode) {
     const a = randInt(20), b = randInt(20);
     const kept = opts.mode === "adv" ? Math.max(a, b) : Math.min(a, b);
-    return { total: kept + mod, dice: [a, b], mod, kept };
+    return { total: kept + mod, dice: [a, b], mod, kept, sides };
   }
   const dice = Array.from({ length: count }, () => randInt(sides));
-  return { total: dice.reduce((x, y) => x + y, 0) + mod, dice, mod };
+  return { total: dice.reduce((x, y) => x + y, 0) + mod, dice, mod, sides };
 }
 
 const signed = (n: number) => (n === 0 ? "" : n > 0 ? ` + ${n}` : ` − ${-n}`);
@@ -289,10 +295,35 @@ function describe(ctx: ActionCtx): string {
   return parts.join("\n\n");
 }
 
-async function log(line: LogLine, embed: Embed, privateRoll = !isPublic()) {
+type DiceShow = Omit<ShownRoll, "id" | "private">;
+// Dice in Owlbear: the roll goes through the mailbox to the GM's Owlbear tab, which shows it
+// to everyone (or only the GM, for private rolls). The Discord post waits for the dice to land.
+const DICE_KEY = "dm-panel/dice-in-owlbear";
+const diceEnabled = () => read(DICE_KEY) !== "no";
+const DISCORD_AFTER_DICE_MS = 4200;
+function showDice(show: DiceShow, privateRoll: boolean): boolean {
+  const token = getToken();
+  if (!diceEnabled() || !token || !show.dice.length) return false;
+  const id = crypto.randomUUID();
+  const cmd: ShowRollCommand = { id, at: new Date().toISOString(), kind: "show-roll", roll: { ...show, id, private: privateRoll } };
+  sendCommand(cmd, token).catch(() => {});
+  return true;
+}
+const d20s = (r: Roll, tint: string): ShownDie[] =>
+  r.kept === undefined
+    ? [{ sides: 20, value: r.dice[0], tint }]
+    : r.dice.map((v, i) => ({ sides: 20, value: v, tint, kept: i === r.dice.indexOf(r.kept!) }));
+const diceOf = (r: Roll, tint: string): ShownDie[] => r.dice.map((v) => ({ sides: r.sides, value: v, tint }));
+
+async function log(line: LogLine, embed: Embed, privateRoll = !isPublic(), dice?: DiceShow) {
   rollLog.unshift(line);
   rollLog.splice(15);
   render();
+  if (dice && showDice(dice, privateRoll) && !privateRoll) {
+    line.status = "Rolling in Owlbear…";
+    renderLog();
+    await new Promise((r) => setTimeout(r, DISCORD_AFTER_DICE_MS));
+  }
   const status = await postToDiscord(embed, privateRoll);
   line.status = status === "posted" ? "" : status === "private" ? "Private" : status === "no-webhook" ? "Not posted: no webhook" : "Discord post failed";
   renderLog();
@@ -326,6 +357,7 @@ function doRecharge(ctx: ActionCtx) {
     { who: ctx.dmName, action: ctx.p.title, text: `<span class="big">${d}</span> recharge <span class="how">needs ${min}+</span> ${back ? `<em class="crit">Ready</em>` : "Still spent"}`, tone: back ? "crit" : undefined },
     { description: "" },
     true, // recharge rolls are the DM's business
+    { who: ctx.shown, action: `${publicName(ctx)} recharge`, dice: [{ sides: 6, value: d, tint: "ivory" }], results: [{ value: d, label: back ? "recharged" : "still spent" }], tone: back ? "crit" : undefined },
   );
 }
 function setReady(ctx: ActionCtx) {
@@ -355,6 +387,8 @@ function doAttack(ctx: ActionCtx, mode?: "adv" | "dis") {
       description: `${describe(ctx)}\n\n**To hit: ${r.total}** (${how})${tag ? ` — **${tag}**` : ""}`,
       color: nat ? COLOUR[nat] : COLOUR.brass,
     },
+    undefined,
+    { who: ctx.shown, action: publicName(ctx), dice: d20s(r, "brass"), results: [{ value: r.total, label: "to hit" }], detail: how, tag: tag.replace("!", "") || undefined, tone: nat },
   );
 }
 
@@ -384,6 +418,16 @@ function doUse(ctx: ActionCtx) {
       description: describe(ctx) + dcs + rolled,
       color: COLOUR.brass,
     },
+    undefined,
+    dice.length
+      ? {
+          who: ctx.shown,
+          action: publicName(ctx),
+          dice: dice.flatMap((x) => diceOf(x.r, x.d.type === "hit points" ? "healing" : x.d.type || "brass")),
+          results: dice.map((x) => ({ value: x.r.total, label: label(x.d), tint: x.d.type === "hit points" ? "healing" : x.d.type })),
+          detail: halves ? `Half on a successful save: ${dice.filter((x) => half(x)).map((x) => Math.floor(x.r.total / 2)).join(" · ")}` : dice.map((x) => x.d.expr).join(" · "),
+        }
+      : undefined,
   );
 }
 
@@ -405,6 +449,16 @@ function doDamage(ctx: ActionCtx) {
       description: `${ctx.shown}'s ${publicName(ctx)} deals:\n\n${rolls.map((x) => `**${x.r.total}** ${x.d.type} damage`).join("\n")}${crit ? "\n*Critical hit: damage dice doubled*" : ""}`,
       color: crit ? COLOUR.crit : COLOUR.brass,
     },
+    undefined,
+    {
+      who: ctx.shown,
+      action: publicName(ctx),
+      dice: rolls.flatMap((x) => diceOf(x.r, x.d.type)),
+      results: rolls.map((x) => ({ value: x.r.total, label: x.d.type, tint: x.d.type })),
+      detail: rolls.map((x) => x.d.expr).join(" · "),
+      tag: crit ? "Critical hit" : undefined,
+      tone: crit ? "crit" : undefined,
+    },
   );
 }
 
@@ -417,6 +471,8 @@ function doExtra(ctx: ActionCtx, i: number) {
   log(
     { who: ctx.dmName, action: ctx.p.title, text: `<span class="big">${r.total}</span> <span class="how">${escapeHtml(d.expr)}: ${working(r)}</span>` },
     { author: { name: ctx.shown }, description: `${ctx.shown}'s ${publicName(ctx)}: **${r.total}** (${d.expr}: ${working(r)})`, color: COLOUR.brass },
+    undefined,
+    { who: ctx.shown, action: publicName(ctx), dice: diceOf(r, d.type && d.type !== "hit points" ? d.type : d.type === "hit points" ? "healing" : "brass"), results: [{ value: r.total, label: d.type || d.expr }], detail: `${d.expr}: ${working(r)}` },
   );
 }
 
@@ -437,6 +493,7 @@ function rollBox() {
     { who: "Dice", action: expr, text: `<span class="big">${r.total}</span> <span class="how">${working(r)}</span>` },
     { author: { name: "The DM rolls" }, description: `**${r.total}** (${expr}: ${working(r)})`, color: COLOUR.dice },
     privateRoll,
+    { who: "The DM rolls", action: "", dice: diceOf(r, "brass"), results: [{ value: r.total, label: expr }], detail: working(r) },
   );
 }
 $<HTMLButtonElement>("dice-roll").addEventListener("click", rollBox);
@@ -504,6 +561,8 @@ function doCheck(c: CheckCtx) {
   log(
     { who: c.dmName, action: c.label, text: `<span class="big">${r.total}</span> <span class="how">${how}</span>${tag ? ` <em class="${nat}">${tag}</em>` : ""}`, tone: nat },
     { author: { name: c.shown }, description: `${c.shown} makes ${c.post}:\n\n**${r.total}** (${how})${tag ? ` — **${tag}**` : ""}`, color: nat ? COLOUR[nat] : COLOUR.brass },
+    undefined,
+    { who: c.shown, action: c.label, dice: d20s(r, "verdigris"), results: [{ value: r.total, label: c.label }], detail: how, tag: tag || undefined, tone: nat },
   );
 }
 

@@ -315,7 +315,13 @@ export interface ApplyStatBlockCommand {
   entryName: string;
   forge: Record<string, unknown>; // bestiary Forge JSON
 }
-export type PanelCommand = ApplyStatBlockCommand;
+export interface ShowRollCommand {
+  id: string;
+  at: string;
+  kind: "show-roll";
+  roll: import("./diceTypes").ShownRoll;
+}
+export type PanelCommand = ApplyStatBlockCommand | ShowRollCommand;
 export interface CommandFile { commands: PanelCommand[] }
 
 export async function sendCommand(cmd: PanelCommand, token: string): Promise<void> {

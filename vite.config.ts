@@ -12,6 +12,7 @@ export default defineConfig({
         popover: resolve(__dirname, "index.html"),
         background: resolve(__dirname, "background.html"),
         dmPanel: resolve(__dirname, "dm-panel.html"),
+        dice: resolve(__dirname, "dice.html"),
       },
     },
   },
