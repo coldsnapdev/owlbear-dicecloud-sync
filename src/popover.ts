@@ -67,7 +67,7 @@ app.innerHTML = `
     <p class="hint" style="margin-top:8px;"><a id="dm-panel-link" href="./dm-panel.html" target="_blank" rel="noopener">Open DM panel ↗</a> — works in any browser or device.</p>
   </section>
 
-  <p class="hint" style="opacity:0.5;">build 34 — DM notes separate from rules</p>
+  <p class="hint" style="opacity:0.5;">build 35 — name brackets stay in the panel</p>
 `;
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;

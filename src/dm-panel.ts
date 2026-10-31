@@ -211,7 +211,8 @@ function parseAction(a: { name: string; description: string }, forced?: Category
     if (DAMAGE_TYPES.has(word)) p.damage.push({ expr, type: word });
     else p.extras.push({ expr, type: "" });
   }
-  p.dcs = Array.from(a.description.matchAll(/DC\s*(\d+)\s+([A-Za-z]+)/g)).map((x) => `DC ${x[1]} ${ABILITIES[x[2].toLowerCase()] ?? x[2]}`);
+  // DCs from the name too ("Command (DC 16 Wisdom save)"), so they still reach the post
+  p.dcs = [...new Set(Array.from(`${a.name} ${a.description}`.matchAll(/DC\s*(\d+)\s+([A-Za-z]+)/g)).map((x) => `DC ${x[1]} ${ABILITIES[x[2].toLowerCase()] ?? x[2]}`))];
   p.text = escapeHtml(a.description).replace(/\[([^\]]+)\]/g, '<span class="dice">$1</span>');
   p.plain = a.description.replace(/\[([^\]]+)\]/g, "$1");
   return p;
@@ -276,22 +277,12 @@ function flavour(ctx: ActionCtx): string | undefined {
   return lines[randInt(lines.length) - 1].replace(/\{name\}/g, ctx.shown);
 }
 
-/** The ability name as players see it: name brackets hold rules, which go in the post body instead (see nameRules). */
-/** Rules carried in an ability's name brackets ("Recharge 5-6", "Level 3 Slot"), minus category tags. */
-const CATEGORY_WORDS = /^(trait|bonus action|reaction|legendary( action)?)$/i;
-function nameRules(ctx: ActionCtx): string {
-  const parts = Array.from(ctx.raw.name.matchAll(/\(([^)]*)\)/g))
-    .flatMap((m) => m[1].split(","))
-    .map((x) => x.trim())
-    .filter((x) => x && !CATEGORY_WORDS.test(x));
-  return parts.join(" · ");
-}
+/** The ability name as players see it: name brackets (uses, slots, recharge, x2) stay in the panel. */
 const publicName = (ctx: ActionCtx) => ctx.p.title.replace(/\s*\([^)]*\)/g, "").trim() || ctx.p.title;
 
 /** Flavour (or the rules text) plus full spell text, for attack and "use" posts. */
 function describe(ctx: ActionCtx): string {
-  const rules = nameRules(ctx);
-  const parts = [(rules ? `*${rules}*\n` : "") + (flavour(ctx) ?? ctx.p.plain)];
+  const parts = [flavour(ctx) ?? ctx.p.plain];
   const spell = spellFor(ctx.p.title);
   if (spell) parts.push(spellBlock(spell));
   return parts.join("\n\n");
