@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-10-31T12:00:40.360Z",
+ "savedAt": "2026-10-31T12:05:10.859Z",
  "tokens": {
   "0ca300c3-9fd8-4017-923f-2ab85b976457": [
    {
@@ -11,6 +11,10 @@
    {
     "key": "poisoned",
     "label": "Poisoned"
+   },
+   {
+    "key": "prone",
+    "label": "Prone"
    }
   ]
  }
