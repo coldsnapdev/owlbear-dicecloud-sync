@@ -4,7 +4,7 @@
 // (see mailbox.ts), matches each combatant to a bestiary entry from the DM
 // manual, lets the DM roll from the stat block, and posts the results to
 // Discord with flavour text (and full spell text) for the table.
-import { liveCode, liveTopic, publishLive, relayStatus, sendLocal } from "./live";
+import { liveCode, liveTopic, owlbearWindow, publishLive, relayStatus, sendDirect, sendLocal, type LiveMessage } from "./live";
 import {
   loadAssignments,
   loadBestiary,
@@ -107,18 +107,25 @@ chipsToggle.addEventListener("change", () => {
 });
 
 // the live roll channel's code: should match the one in the Owlbear extension's popover
-// is the local relay running, and is Owlbear on it?
-async function showRelay() {
-  const st = await relayStatus();
-  const el = $("relay-status");
-  el.textContent = !st
-    ? "Local relay: not running (rolls and statuses take the slower routes)"
-    : st.owlbear
-      ? "Local relay: running · Owlbear connected — everything goes straight to the table"
-      : "Local relay: running · Owlbear not connected yet (reload Owlbear if this stays)";
-  setTimeout(showRelay, st ? 5000 : 15000);
+// the fast routes to Owlbear: the direct link when this panel was opened from Owlbear's
+// own link, otherwise the local relay (abelon-relay.mjs) if it's running
+async function fastSend(msg: LiveMessage): Promise<boolean> {
+  if (await sendDirect(msg)) return true;
+  return (await sendLocal("owlbear", msg)) > 0;
 }
-showRelay();
+async function showLink() {
+  const linked = await sendDirect({ kind: "ping", id: crypto.randomUUID(), at: new Date().toISOString() });
+  const relay = linked ? undefined : await relayStatus();
+  $("relay-status").textContent = linked
+    ? "Linked to Owlbear — rolls, statuses and stat blocks go straight to the table"
+    : relay?.owlbear
+      ? "Linked to Owlbear through the local relay"
+      : owlbearWindow()
+        ? "Owlbear tab found but not answering yet (open a scene; reload Owlbear if this stays)"
+        : "Not linked: open this panel from the Owlbear extension's \"Open DM panel\" link for instant rolls";
+  setTimeout(showLink, 5000);
+}
+showLink();
 async function showLiveCode() {
   const token = getToken();
   $("live-code").textContent = token ? `Live roll channel: ${liveCode(await liveTopic(token))} (should match the code in the Owlbear extension)` : "";
@@ -331,8 +338,8 @@ function showDice(show: DiceShow, privateRoll: boolean): Promise<boolean> | unde
   // live channel first (near-instant); GitHub as the backup, which Owlbear skips if the
   // live copy already arrived
   return (async () => {
-    // 1. the relay on this computer: instant, private, nothing else needed
-    if ((await sendLocal("owlbear", cmd)) > 0) return true;
+    // 1. straight to Owlbear (direct link, or the relay): instant, private
+    if (await fastSend(cmd)) return true;
     // 2. ntfy.sh, with the GitHub mailbox behind it in case that doesn't arrive either
     const live = await publishLive(token, cmd);
     sendCommand(cmd, token).catch(() => {});
@@ -663,7 +670,7 @@ function changeStatuses(itemId: string, fn: (list: TokenStatus[]) => TokenStatus
   render();
   // straight to Owlbear through the relay, if it's running; GitHub keeps the saved copy
   const tokens = Object.fromEntries(Object.entries(statuses).filter(([, l]) => l.length));
-  sendLocal("owlbear", { kind: "statuses", id: crypto.randomUUID(), at: new Date().toISOString(), file: { savedAt: new Date().toISOString(), tokens } });
+  fastSend({ kind: "statuses", id: crypto.randomUUID(), at: new Date().toISOString(), file: { savedAt: new Date().toISOString(), tokens } });
   scheduleStatusSave();
 }
 function addStatus(itemId: string, key: string, dmOnly: boolean, customText?: string) {
@@ -826,7 +833,7 @@ async function applyToToken(itemId: string, entryId: string) {
   meta.className = "";
   try {
     const cmd = { id: crypto.randomUUID(), at: new Date().toISOString(), kind: "apply-statblock" as const, itemId, entryName: e.name, forge: e.forge };
-    if ((await sendLocal("owlbear", cmd)) <= 0) await sendCommand(cmd, token);
+    if (!(await fastSend(cmd))) await sendCommand(cmd, token);
     meta.textContent = `${e.name} sent to token`;
   } catch (err) {
     meta.textContent = `Not sent: ${err instanceof Error ? err.message : err}`;

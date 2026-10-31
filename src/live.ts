@@ -155,3 +155,87 @@ export function listenLocal(
     },
   };
 }
+
+// --- Direct link (panel opened from inside Owlbear) ---------------------------------------
+// Opera/Chrome won't let a page embedded in Owlbear reach this computer, so the relay
+// can't hear Owlbear's side. But when the panel is opened from the extension's own link,
+// the browser hands it a reference to the Owlbear tab, and the two can message each other
+// directly: no server, no relay, instant. The panel posts to every frame of the Owlbear tab;
+// only our own extension's page (same origin) can receive it, and it answers each message.
+export const LINK_STATUS_KEY = "dicecloud-sync/link-status";
+export interface LinkEnvelope {
+  abelon: "panel-msg" | "ack" | "hello";
+  ref: string;
+  msg?: LiveMessage | { kind: "ping"; id: string; at: string };
+}
+
+// The Owlbear tab. Captured the moment the panel opens (the extension window that opened it
+// closes with its popover), then refreshed from Owlbear's own "hello" messages, which is
+// what re-links the panel after either side reloads.
+let owlbearTop: Window | undefined;
+try {
+  owlbearTop = (window.opener?.top as Window | undefined) ?? undefined;
+} catch {
+  owlbearTop = undefined;
+}
+if (typeof window !== "undefined") {
+  window.addEventListener("message", (e) => {
+    const d = e.data as LinkEnvelope;
+    if (e.origin !== location.origin || d?.abelon !== "hello" || !e.source) return;
+    try {
+      owlbearTop = (e.source as Window).top ?? undefined;
+    } catch {
+      // ignore
+    }
+  });
+}
+
+/** The Owlbear tab this panel is linked to, if any. */
+export function owlbearWindow(): Window | undefined {
+  try {
+    return owlbearTop && !owlbearTop.closed ? owlbearTop : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function framesOf(w: Window, depth = 0, out: Window[] = []): Window[] {
+  try {
+    for (let i = 0; i < w.frames.length; i++) {
+      const f = w.frames[i] as Window;
+      out.push(f);
+      if (depth < 3) framesOf(f, depth + 1, out);
+    }
+  } catch {
+    // a frame went away mid-walk
+  }
+  return out;
+}
+
+/** Sends straight to the Owlbear tab. True once our extension has acknowledged it. */
+export function sendDirect(msg: LinkEnvelope["msg"], timeoutMs = 400): Promise<boolean> {
+  const top = owlbearWindow();
+  if (!top) return Promise.resolve(false);
+  const ref = crypto.randomUUID();
+  return new Promise((resolve) => {
+    const done = (ok: boolean) => {
+      window.removeEventListener("message", onAck);
+      clearTimeout(timer);
+      resolve(ok);
+    };
+    const onAck = (e: MessageEvent) => {
+      const d = e.data as LinkEnvelope;
+      if (e.origin === location.origin && d?.abelon === "ack" && d.ref === ref) done(true);
+    };
+    window.addEventListener("message", onAck);
+    const timer = setTimeout(() => done(false), timeoutMs);
+    const envelope: LinkEnvelope = { abelon: "panel-msg", ref, msg };
+    for (const f of framesOf(top)) {
+      try {
+        f.postMessage(envelope, location.origin); // only frames on our origin receive it
+      } catch {
+        // ignore
+      }
+    }
+  });
+}

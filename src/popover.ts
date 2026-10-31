@@ -1,4 +1,4 @@
-import { LIVE_STATUS_KEY, RELAY_STATUS_KEY } from "./live";
+import { LINK_STATUS_KEY, LIVE_STATUS_KEY, RELAY_STATUS_KEY } from "./live";
 import OBR, { type Item } from "@owlbear-rodeo/sdk";
 import {
   diceCloudLogin,
@@ -65,12 +65,12 @@ app.innerHTML = `
       <button id="save-gh-token">Save token</button>
       <span id="gh-status" class="status"></span>
     </div>
-    <p class="hint" style="margin-top:8px;"><a id="dm-panel-link" href="./dm-panel.html" target="_blank" rel="noopener">Open DM panel ↗</a> — works in any browser or device.</p>
+    <p class="hint" style="margin-top:8px;"><a id="dm-panel-link" href="./dm-panel.html" target="_blank">Open DM panel ↗</a> — open it from here to link it to this Owlbear tab (instant rolls).</p>
     <p id="relay-status" class="hint"></p>
     <p id="live-status" class="hint"></p>
   </section>
 
-  <p class="hint" style="opacity:0.5;">build 45 — local relay for rolls, stat blocks and statuses
+  <p class="hint" style="opacity:0.5;">build 46 — DM panel links straight to Owlbear
 `;
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;
@@ -84,11 +84,21 @@ const ghTokenInput = document.getElementById("gh-token") as HTMLInputElement;
 const ghStatus = document.getElementById("gh-status")!;
 // live roll channel, as reported by the background page (GM only)
 const liveEl = document.getElementById("live-status")!;
+// opened with window.open (not a plain link, which browsers now open without a back-reference)
+// so the panel keeps a handle on this Owlbear tab and can message it directly
+document.getElementById("dm-panel-link")!.addEventListener("click", (e) => {
+  e.preventDefault();
+  window.open(new URL("dm-panel.html", location.href).href, "abelon-dm-panel");
+});
 const relayEl = document.getElementById("relay-status")!;
 function renderRelay() {
   let st: { state?: string } = {};
   try { st = JSON.parse(localStorage.getItem(RELAY_STATUS_KEY) || "{}"); } catch { /* none yet */ }
-  relayEl.textContent = !st.state ? "" : st.state === "connected" ? "Local relay: connected — panel commands arrive instantly" : "Local relay: not running";
+  let link: { at?: number } = {};
+  try { link = JSON.parse(localStorage.getItem(LINK_STATUS_KEY) || "{}"); } catch { /* none yet */ }
+  relayEl.textContent = link.at && Date.now() - link.at < 15000
+    ? "DM panel: linked — panel commands arrive instantly"
+    : st.state === "connected" ? "DM panel: linked through the local relay" : "";
 }
 renderRelay();
 setInterval(renderRelay, 2000);

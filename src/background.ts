@@ -1,4 +1,4 @@
-import { LIVE_STATUS_KEY, RELAY_STATUS_KEY, listenLocal, liveCode, liveTopic, subscribeLive, type LiveSubscription } from "./live";
+import { LINK_STATUS_KEY, LIVE_STATUS_KEY, RELAY_STATUS_KEY, listenLocal, type LinkEnvelope, type LiveMessage, liveCode, liveTopic, subscribeLive, type LiveSubscription } from "./live";
 import OBR from "@owlbear-rodeo/sdk";
 import { diceCloudLogin, fetchCreatureStats, fetchCompanionStats, type DiceCloudSession } from "./dicecloud";
 import { writeForgeStats, getCombatRoster } from "./forge";
@@ -215,22 +215,47 @@ function relayState(state: string) {
 }
 function startRelay() {
   if (relay) return;
-  relay = listenLocal(
-    "owlbear",
-    (msg) => {
-      if (msg.kind === "statuses") {
-        if (!statusFile?.savedAt || !msg.file.savedAt || msg.file.savedAt >= statusFile.savedAt) {
-          statusFile = msg.file;
-          reconcileStatuses().catch((err) => log("Couldn't draw statuses:", err));
-        }
-        return;
-      }
-      if (doneCommands.has(msg.id)) return;
-      doneCommands.add(msg.id);
-      runCommand(msg).catch((err) => log("Relay command failed:", err));
-    },
-    relayState,
-  );
+  relay = listenLocal("owlbear", handleLiveMessage, relayState);
+}
+
+// messages from the panel, by whichever fast route they came (relay or direct link)
+function handleLiveMessage(msg: LiveMessage) {
+  if (msg.kind === "statuses") {
+    if (!statusFile?.savedAt || !msg.file.savedAt || msg.file.savedAt >= statusFile.savedAt) {
+      statusFile = msg.file;
+      reconcileStatuses().catch((err) => log("Couldn't draw statuses:", err));
+    }
+    return;
+  }
+  if (doneCommands.has(msg.id)) return;
+  doneCommands.add(msg.id);
+  runCommand(msg).catch((err) => log("Panel command failed:", err));
+}
+
+// the direct link: a panel opened from this extension's link posts straight to this page
+let linkListening = false;
+let panelWindow: Window | undefined;
+function startDirectLink() {
+  if (linkListening) return;
+  linkListening = true;
+  // keep saying hello to the panel we've heard from: a panel that reloads has lost its
+  // handle on this tab, and this hands it back
+  setInterval(() => {
+    try {
+      if (panelWindow && !panelWindow.closed) panelWindow.postMessage({ abelon: "hello", ref: "" } satisfies LinkEnvelope, location.origin);
+    } catch {
+      panelWindow = undefined;
+    }
+  }, 2000);
+  window.addEventListener("message", (e) => {
+    const d = e.data as LinkEnvelope;
+    if (e.origin !== location.origin || d?.abelon !== "panel-msg" || !d.msg) return;
+    panelWindow = (e.source as Window | null) ?? panelWindow;
+    panelWindow?.postMessage({ abelon: "ack", ref: d.ref } satisfies LinkEnvelope, location.origin);
+    localStorage.setItem(LINK_STATUS_KEY, JSON.stringify({ state: "linked", at: Date.now() }));
+    if (d.msg.kind === "ping") return;
+    handleLiveMessage(d.msg);
+  });
 }
 
 async function pollCommandFile(token: string) {
@@ -255,7 +280,10 @@ async function pollStatusFile() {
   statusBusy = true;
   try {
     if (isGM === undefined) isGM = (await OBR.player.getRole()) === "GM";
-    if (isGM) startRelay();
+    if (isGM) {
+      startRelay();
+      startDirectLink();
+    }
     const token = getGitHubToken();
     await ensureLive(isGM ? token : undefined);
     if (!isGM || !token) return;
