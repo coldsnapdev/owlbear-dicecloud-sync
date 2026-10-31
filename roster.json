@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-10-31T10:54:33.771Z",
+ "savedAt": "2026-10-31T10:56:51.552Z",
  "combatants": [
   {
    "itemId": "f1bdb335-d08e-4bfc-9a71-247a12609177",
@@ -22,10 +22,20 @@
    "ac": 11
   },
   {
+   "itemId": "0ca300c3-9fd8-4017-923f-2ab85b976457",
+   "name": "Idony",
+   "initiative": 15
+  },
+  {
    "itemId": "2de15995-ebe1-42c0-99b0-16c216518b05",
    "name": "Jenok",
    "initiative": 13,
    "ac": 15
+  },
+  {
+   "itemId": "7aa6256d-b943-47ca-87a1-aebff92c5855",
+   "name": "Radek",
+   "initiative": 9
   },
   {
    "itemId": "4de430d6-8454-446f-84b4-f0b04b8a178b",
@@ -39,16 +49,6 @@
    "realName": "Rot Skulker 4",
    "initiative": 5,
    "ac": 10
-  },
-  {
-   "itemId": "0ca300c3-9fd8-4017-923f-2ab85b976457",
-   "name": "Idony",
-   "initiative": 0
-  },
-  {
-   "itemId": "7aa6256d-b943-47ca-87a1-aebff92c5855",
-   "name": "Radek",
-   "initiative": 0
   }
  ]
 }
