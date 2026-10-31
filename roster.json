@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-10-31T11:06:04.516Z",
+ "savedAt": "2026-10-31T11:07:08.893Z",
  "combatants": [
   {
    "itemId": "f1bdb335-d08e-4bfc-9a71-247a12609177",
@@ -24,7 +24,8 @@
   {
    "itemId": "0ca300c3-9fd8-4017-923f-2ab85b976457",
    "name": "Idony",
-   "initiative": 15
+   "initiative": 15,
+   "ac": 13
   },
   {
    "itemId": "2de15995-ebe1-42c0-99b0-16c216518b05",
