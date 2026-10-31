@@ -175,6 +175,31 @@
     "com.battle-system.forge/Z008": 30,
     "com.battle-system.forge/Z021": 12
    }
+  },
+  {
+   "id": "3f843786-2d54-456e-9423-ae7da71ae3b8",
+   "at": "2026-10-31T12:31:51.650Z",
+   "kind": "show-roll",
+   "roll": {
+    "who": "Idony",
+    "action": "Shortsword",
+    "dice": [
+     {
+      "sides": 20,
+      "value": 16,
+      "tint": "brass"
+     }
+    ],
+    "results": [
+     {
+      "value": 20,
+      "label": "to hit"
+     }
+    ],
+    "detail": "d20 16 + 4",
+    "id": "3f843786-2d54-456e-9423-ae7da71ae3b8",
+    "private": false
+   }
   }
  ]
 }
