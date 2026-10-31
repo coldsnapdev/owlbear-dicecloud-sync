@@ -107,6 +107,13 @@
       .dice { color: var(--ink); font-weight: 600; }
       .defences { margin: 10px 0 0; font-size: 13px; color: var(--ink-soft); display: grid; gap: 3px; }
       .defences b { font: 600 11px/1 Cinzel, serif; letter-spacing: .06em; color: var(--brass); margin-right: 6px; text-transform: uppercase; }
+      .pc-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+      .pc-pill { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px; border-radius: 20px; background: var(--panel); border: 1px solid var(--line); color: var(--ink); font: inherit; font-size: 15px; cursor: pointer; }
+      .pc-pill:hover { border-color: var(--brass-deep); }
+      .pc-pill.on { border-color: var(--brass); box-shadow: 0 0 0 1px var(--brass) inset; }
+      .pc-init { display: inline-grid; place-items: center; min-width: 26px; height: 26px; border-radius: 13px; background: #5fb39b; color: #10201b; font-weight: 700; font-size: 13px; padding: 0 4px; }
+      .pc-pill .st-mini { margin-left: 0; }
+      .pc-check { display: flex; margin: 0 0 8px; }
       .statuses { margin: 10px 0 4px; }
       .st-row { display: flex; flex-wrap: wrap; gap: 6px; }
       .st-none { color: var(--ink-faint); font-size: 13px; font-style: italic; }

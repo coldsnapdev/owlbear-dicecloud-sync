@@ -676,6 +676,11 @@ function renderLog() {
     : `<p class="empty">Rolls appear here.</p>`;
 }
 
+// Player characters are remembered by token name, so the choice carries across scenes.
+// Stored beside the stat block choices in assignments.json as "pc:<name>".
+const pcKey = (c: RosterEntry) => `pc:${norm(c.name)}`;
+const isPC = (c: RosterEntry) => assignments[pcKey(c)] === "1";
+
 function render() {
   renderLog();
   actions.clear();
@@ -691,8 +696,7 @@ function render() {
     return;
   }
   const options = [...bestiary].sort((a, b) => a.name.localeCompare(b.name));
-  app.innerHTML = roster.combatants
-    .map((c) => {
+  const card = (c: RosterEntry) => {
       const { entry, manual } = entryFor(c);
       const auto = autoMatch(c);
       const isOpen = open.has(c.itemId);
@@ -710,6 +714,7 @@ function render() {
           </button>
           ${isOpen ? `
             <div class="body">
+              <label class="check pc-check"><input type="checkbox" class="pc-toggle" ${isPC(c) ? "checked" : ""} /> Player character</label>
               <label class="picker">Stat block
                 <select class="pick">
                   <option value="">${auto ? `Auto: ${escapeHtml(auto.name)}` : "None (party member)"}</option>
@@ -720,9 +725,43 @@ function render() {
               ${entry ? statBlock(entry, c) : `<p class="empty">No stat block. Party members are listed so you can see the turn order; pick an entry above if this token should have one.</p>`}
             </div>` : ""}
         </section>`;
-    })
-    .join("");
+  };
+  // Player characters sit in a strip of pills at the top; a pill opens the full card
+  // just below the strip. Everyone else keeps the usual initiative list.
+  const pcs = roster.combatants.filter(isPC);
+  const npcs = roster.combatants.filter((c) => !isPC(c));
+  const pills = pcs.length
+    ? `<div class="pc-bar">${pcs
+        .map((c) => `<button type="button" class="pc-pill ${open.has(c.itemId) ? "on" : ""}" data-id="${escapeHtml(c.itemId)}" title="Open ${escapeHtml(c.realName || c.name)}"><span class="pc-init">${c.initiative}</span>${escapeHtml(c.realName || c.name)}${headChips(c.itemId)}</button>`)
+        .join("")}</div>`
+    : "";
+  app.innerHTML =
+    pills +
+    pcs.filter((c) => open.has(c.itemId)).map(card).join("") +
+    (npcs.length ? npcs.map(card).join("") : pcs.length ? "" : `<p class="empty">Nobody is on Forge's combat list.</p>`);
   freshKey = undefined;
+
+  app.querySelectorAll<HTMLButtonElement>("button.pc-pill").forEach((b) =>
+    b.addEventListener("click", () => {
+      const id = b.dataset.id!;
+      if (open.has(id)) open.delete(id);
+      else open.add(id);
+      render();
+    }),
+  );
+  app.querySelectorAll<HTMLInputElement>("input.pc-toggle").forEach((box) =>
+    box.addEventListener("change", () => {
+      const c = roster?.combatants.find((x) => x.itemId === box.closest<HTMLElement>(".combatant")!.dataset.id);
+      if (!c) return;
+      const k = pcKey(c);
+      if (box.checked) {
+        assignments[k] = "1";
+        open.delete(c.itemId); // tuck it away into the strip
+      } else delete assignments[k];
+      render();
+      persistAssignments();
+    }),
+  );
 
   app.querySelectorAll<HTMLButtonElement>("button.roll").forEach((b) =>
     b.addEventListener("click", () => {
