@@ -2,7 +2,7 @@ import OBR from "@owlbear-rodeo/sdk";
 import { diceCloudLogin, fetchCreatureStats, fetchCompanionStats, type DiceCloudSession } from "./dicecloud";
 import { writeForgeStats, getCombatRoster } from "./forge";
 import { getStoredCredentials, reconcileMappings, type Mapping } from "./config";
-import { getGitHubToken, rosterFingerprint, saveRoster, toRosterEntries, pollStatuses, type StatusFile } from "./mailbox";
+import { getGitHubToken, rosterFingerprint, saveRoster, toRosterEntries, pollStatuses, pollCommands, type StatusFile, type PanelCommand } from "./mailbox";
 import { buildLabel, type Item } from "@owlbear-rodeo/sdk";
 import { statusDef, tokenText, CUSTOM_COLOUR } from "./statuses";
 
@@ -62,6 +62,8 @@ async function checkRoster() {
 // Our own markers carry MARKER_KEY so we never touch anyone else's items.
 const STATUS_POLL_MS = 4000;
 const MARKER_KEY = "com.abelon.status/marker";
+// Bump when the label look changes, so labels already on tokens get redrawn.
+const LABEL_STYLE = 2;
 let statusEtag: string | undefined;
 let statusFile: StatusFile | undefined;
 let statusBusy = false;
@@ -86,7 +88,7 @@ async function reconcileStatuses() {
     list.forEach((st, i) => {
       const text = tokenText(st);
       const colour = st.key.startsWith("custom:") ? CUSTOM_COLOUR : statusDef(st.key)?.colour ?? CUSTOM_COLOUR;
-      const sig = JSON.stringify([text, colour, !!st.dmOnly, i, dpi, scaleSig]);
+      const sig = JSON.stringify([LABEL_STYLE, text, colour, !!st.dmOnly, i, dpi, scaleSig]);
       wanted.push({
         parent: parentId,
         sig,
@@ -134,6 +136,56 @@ async function reconcileStatuses() {
   if (toDelete.length || toAdd.length) log(`Statuses: ${toAdd.length} added, ${toDelete.length} removed.`);
 }
 
+// --- Commands from the panel ----------------------------------------------------------
+// "Apply stat block": writes the bestiary entry's Forge stats onto the token and resets
+// HP to full. Forge's own combat keys (name, init, on-list) are left alone, so the token
+// keeps its visible name and its place in the fight.
+const DONE_KEY = "dicecloud-sync/commands-done";
+const COMMAND_MAX_AGE_MS = 15 * 60 * 1000;
+let commandEtag: string | undefined;
+const doneCommands = new Set<string>(JSON.parse(localStorage.getItem(DONE_KEY) || "[]") as string[]);
+
+async function runCommand(cmd: PanelCommand) {
+  if (cmd.kind !== "apply-statblock") return;
+  const exists = (await OBR.scene.items.getItems([cmd.itemId])).length > 0;
+  if (!exists) {
+    log(`Apply stat block: token ${cmd.itemId} isn't in this scene.`);
+    return;
+  }
+  const keep = new Set(["com.battle-system.forge/name", "com.battle-system.forge/init", "com.battle-system.forge/on-list"]);
+  const stringy = new Set(["Z005", "Z006", "Z007", "Z042"]);
+  await OBR.scene.items.updateItems([cmd.itemId], (items) => {
+    for (const item of items) {
+      for (const [k, v] of Object.entries(cmd.forge)) {
+        if (!k.startsWith("com.battle-system.forge/") || keep.has(k)) continue;
+        const short = k.split("/")[1];
+        item.metadata[k] = stringy.has(short) && v !== "" && v != null ? String(v) : v;
+      }
+      const max = cmd.forge["com.battle-system.forge/Z006"];
+      if (max !== undefined) item.metadata["com.battle-system.forge/Z005"] = String(max); // full HP
+      item.metadata["com.battle-system.forge/Z042"] = "0"; // no temp HP
+    }
+  });
+  log(`Applied ${cmd.entryName} to token ${cmd.itemId}.`);
+}
+
+async function pollCommandFile(token: string) {
+  const res = await pollCommands(token, commandEtag);
+  if (!res) return;
+  commandEtag = res.etag;
+  for (const cmd of res.file.commands ?? []) {
+    if (doneCommands.has(cmd.id)) continue;
+    doneCommands.add(cmd.id);
+    if (Date.now() - new Date(cmd.at).getTime() > COMMAND_MAX_AGE_MS) continue; // stale, never replay
+    try {
+      await runCommand(cmd);
+    } catch (err) {
+      log("Command failed:", err);
+    }
+  }
+  localStorage.setItem(DONE_KEY, JSON.stringify([...doneCommands].slice(-100)));
+}
+
 async function pollStatusFile() {
   if (statusBusy) return;
   statusBusy = true;
@@ -141,6 +193,7 @@ async function pollStatusFile() {
     if (isGM === undefined) isGM = (await OBR.player.getRole()) === "GM";
     const token = getGitHubToken();
     if (!isGM || !token) return;
+    await pollCommandFile(token).catch((err) => log("Couldn't read panel commands:", err));
     const res = await pollStatuses(token, statusEtag);
     if (res) {
       statusFile = res.file;

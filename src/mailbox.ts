@@ -297,3 +297,53 @@ export async function pollStatuses(token: string, etag?: string): Promise<{ file
   const j = await r.json();
   return { file: JSON.parse(decode(j.content)) as StatusFile, etag: r.headers.get("ETag") ?? undefined };
 }
+
+// --- Commands -------------------------------------------------------------------------
+// One-off instructions from the panel to the extension (e.g. "apply this stat block to
+// that token"). The panel appends to commands.json; the GM's Owlbear tab polls it and
+// runs each command once (it remembers the ids it has run).
+export const COMMANDS_PATH = "commands.json";
+const COMMANDS_URL = `https://api.github.com/repos/${REPO}/contents/${COMMANDS_PATH}`;
+
+export interface ApplyStatBlockCommand {
+  id: string;
+  at: string; // ISO time it was sent
+  kind: "apply-statblock";
+  itemId: string;
+  entryName: string;
+  forge: Record<string, unknown>; // bestiary Forge JSON
+}
+export type PanelCommand = ApplyStatBlockCommand;
+export interface CommandFile { commands: PanelCommand[] }
+
+export async function sendCommand(cmd: PanelCommand, token: string): Promise<void> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const current = await readJson<CommandFile>(`${COMMANDS_URL}?ref=${BRANCH}`, token);
+    const commands = [...(current?.data.commands ?? []), cmd].slice(-20);
+    const r = await fetch(COMMANDS_URL, {
+      method: "PUT",
+      headers: { ...headers(token), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: `Command: ${cmd.kind}`,
+        branch: BRANCH,
+        content: encode(JSON.stringify({ commands }, null, 1) + "\n"),
+        ...(current ? { sha: current.sha } : {}),
+      }),
+    });
+    if (r.status === 409 || r.status === 422) continue;
+    if (!r.ok) throw new Error(`send ${r.status}`);
+    return;
+  }
+  throw new Error("send conflict");
+}
+
+export async function pollCommands(token: string, etag?: string): Promise<{ file: CommandFile; etag?: string } | undefined> {
+  const h: Record<string, string> = headers(token);
+  if (etag) h["If-None-Match"] = etag;
+  const r = await fetch(`${COMMANDS_URL}?ref=${BRANCH}`, { headers: h, cache: "no-store" });
+  if (r.status === 304) return undefined;
+  if (r.status === 404) return { file: { commands: [] }, etag: r.headers.get("ETag") ?? undefined };
+  if (!r.ok) throw new Error(`commands ${r.status}`);
+  const j = await r.json();
+  return { file: JSON.parse(decode(j.content)) as CommandFile, etag: r.headers.get("ETag") ?? undefined };
+}

@@ -17,6 +17,7 @@ import {
   type Spell,
   loadStatuses,
   saveStatuses,
+  sendCommand,
   type TokenStatus,
 } from "./mailbox";
 import { STATUS_DEFS, statusDef, tokenText, CUSTOM_COLOUR } from "./statuses";
@@ -662,6 +663,7 @@ function statBlock(e: BestiaryEntry, c: RosterEntry): string {
     <div class="sheet">
       <div class="vitals">
         <span><small>CR</small>${crText(e.cr)}</span><span><small>AC</small>${f[F + "Z007"] ?? "–"}</span><span><small>HP</small>${f[F + "Z005"] ?? "–"}</span><span><small>Speed</small>${f[F + "Z008"] ?? "–"} ft</span>
+        <button type="button" class="apply-btn ${applyArmed === c.itemId ? "armed" : ""}" data-id="${escapeHtml(c.itemId)}" data-entry="${escapeHtml(e.id)}" title="Write this stat block's HP (full), max HP, AC and the rest onto the token in Owlbear">${applyArmed === c.itemId ? "Click again to apply" : "Apply to token"}</button>
       </div>
       ${defences(f)}
       ${checksDrawer(f, c)}
@@ -684,6 +686,29 @@ function renderLog() {
         )
         .join("")
     : `<p class="empty">Rolls appear here.</p>`;
+}
+
+// "Apply to token": two clicks (arm, then confirm) so a stray click can't reset HP.
+let applyArmed: string | undefined;
+let applyTimer: ReturnType<typeof setTimeout> | undefined;
+async function applyToToken(itemId: string, entryId: string) {
+  const e = bestiary.find((x) => x.id === entryId);
+  const token = getToken();
+  if (!e) return;
+  if (!token) {
+    meta.textContent = "Not sent: add a GitHub token in Settings.";
+    meta.className = "warn";
+    return;
+  }
+  meta.textContent = `Sending ${e.name} to the token…`;
+  meta.className = "";
+  try {
+    await sendCommand({ id: crypto.randomUUID(), at: new Date().toISOString(), kind: "apply-statblock", itemId, entryName: e.name, forge: e.forge }, token);
+    meta.textContent = `${e.name} sent. The token updates in a few seconds (full HP, max HP, AC and stats).`;
+  } catch (err) {
+    meta.textContent = `Not sent: ${err instanceof Error ? err.message : err}`;
+    meta.className = "warn";
+  }
 }
 
 function render() {
@@ -763,6 +788,24 @@ function render() {
       else if (op === "extra") doExtra(ctx, Number(b.dataset.i));
       else if (op === "recharge") doRecharge(ctx);
       else if (op === "ready") setReady(ctx);
+    }),
+  );
+  app.querySelectorAll<HTMLButtonElement>("button.apply-btn").forEach((b) =>
+    b.addEventListener("click", () => {
+      const id = b.dataset.id!;
+      clearTimeout(applyTimer);
+      if (applyArmed === id) {
+        applyArmed = undefined;
+        render();
+        applyToToken(id, b.dataset.entry!);
+        return;
+      }
+      applyArmed = id;
+      render();
+      applyTimer = setTimeout(() => {
+        applyArmed = undefined;
+        render();
+      }, 4000);
     }),
   );
   app.querySelectorAll<HTMLButtonElement>("button.st-btn").forEach((b) =>
