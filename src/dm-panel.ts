@@ -277,11 +277,13 @@ function flavour(ctx: ActionCtx): string | undefined {
 }
 
 /** The ability name as players see it: DM notes in brackets ("Recharge 5-6", "Level 3 Slot") stay in the panel. */
+/** Rules text as players see it: bracketed DM notes are dropped here too. */
+const publicText = (text: string) => text.replace(/\s*\([^)]*\)/g, "").replace(/\s+([.,;:])/g, "$1").trim();
 const publicName = (ctx: ActionCtx) => ctx.p.title.replace(/\s*\([^)]*\)/g, "").trim() || ctx.p.title;
 
 /** Flavour (or the rules text) plus full spell text, for attack and "use" posts. */
 function describe(ctx: ActionCtx): string {
-  const parts = [flavour(ctx) ?? ctx.p.plain];
+  const parts = [flavour(ctx) ?? publicText(ctx.p.plain)];
   const spell = spellFor(ctx.p.title);
   if (spell) parts.push(spellBlock(spell));
   return parts.join("\n\n");
