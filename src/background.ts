@@ -63,7 +63,7 @@ async function checkRoster() {
 const STATUS_POLL_MS = 4000;
 const MARKER_KEY = "com.abelon.status/marker";
 // Bump when the label look changes, so labels already on tokens get redrawn.
-const LABEL_STYLE = 5;
+const LABEL_STYLE = 6;
 let statusEtag: string | undefined;
 let statusFile: StatusFile | undefined;
 let statusBusy = false;
@@ -106,7 +106,7 @@ async function reconcileStatuses() {
             .pointerWidth(0)
             .pointerHeight(0)
             .pointerDirection("UP")
-            .position({ x: b.center.x, y: b.max.y + Math.round(dpi * 0.2) + i * row }) // clears the name plate
+            .position({ x: b.center.x, y: b.max.y + Math.round(dpi * 0.1) + i * row }) // clears the name plate
             .attachedTo(parentId)
             .layer("ATTACHMENT")
             .locked(true)
