@@ -276,6 +276,9 @@ function flavour(ctx: ActionCtx): string | undefined {
   return lines[randInt(lines.length) - 1].replace(/\{name\}/g, ctx.shown);
 }
 
+/** The ability name as players see it: DM notes in brackets ("Recharge 5-6", "Level 3 Slot") stay in the panel. */
+const publicName = (ctx: ActionCtx) => ctx.p.title.replace(/\s*\([^)]*\)/g, "").trim() || ctx.p.title;
+
 /** Flavour (or the rules text) plus full spell text, for attack and "use" posts. */
 function describe(ctx: ActionCtx): string {
   const parts = [flavour(ctx) ?? ctx.p.plain];
@@ -346,7 +349,7 @@ function doAttack(ctx: ActionCtx, mode?: "adv" | "dis") {
     { who: ctx.dmName, action: ctx.p.title, text: `<span class="big">${r.total}</span> to hit <span class="how">${how}</span>${tag ? ` <em class="${nat}">${tag}</em>` : ""}`, tone: nat },
     {
       author: { name: ctx.shown },
-      title: ctx.p.title,
+      title: publicName(ctx),
       description: `${describe(ctx)}\n\n**To hit: ${r.total}** (${how})${tag ? ` — **${tag}**` : ""}`,
       color: nat ? COLOUR[nat] : COLOUR.brass,
     },
@@ -360,7 +363,7 @@ function doUse(ctx: ActionCtx) {
   const dcs = ctx.p.dcs.length ? `\n\n**${ctx.p.dcs.join(" · ")}**` : "";
   log({ who: ctx.dmName, action: ctx.p.title, text: `uses ${escapeHtml(ctx.p.title)}` }, {
     author: { name: ctx.shown },
-    title: ctx.p.title,
+    title: publicName(ctx),
     description: describe(ctx) + dcs,
     color: COLOUR.brass,
   });
@@ -381,7 +384,7 @@ function doDamage(ctx: ActionCtx) {
     },
     {
       author: { name: ctx.shown },
-      description: `${ctx.shown}'s ${ctx.p.title} deals:\n\n${rolls.map((x) => `**${x.r.total}** ${x.d.type} damage`).join("\n")}${crit ? "\n*Critical hit: damage dice doubled*" : ""}`,
+      description: `${ctx.shown}'s ${publicName(ctx)} deals:\n\n${rolls.map((x) => `**${x.r.total}** ${x.d.type} damage`).join("\n")}${crit ? "\n*Critical hit: damage dice doubled*" : ""}`,
       color: crit ? COLOUR.crit : COLOUR.brass,
     },
   );
@@ -395,7 +398,7 @@ function doExtra(ctx: ActionCtx, i: number) {
   freshKey = `${ctx.key}|x${i}`;
   log(
     { who: ctx.dmName, action: ctx.p.title, text: `<span class="big">${r.total}</span> <span class="how">${escapeHtml(d.expr)}: ${working(r)}</span>` },
-    { author: { name: ctx.shown }, description: `${ctx.shown}'s ${ctx.p.title}: **${r.total}** (${d.expr}: ${working(r)})`, color: COLOUR.brass },
+    { author: { name: ctx.shown }, description: `${ctx.shown}'s ${publicName(ctx)}: **${r.total}** (${d.expr}: ${working(r)})`, color: COLOUR.brass },
   );
 }
 

@@ -67,7 +67,7 @@ app.innerHTML = `
     <p class="hint" style="margin-top:8px;"><a id="dm-panel-link" href="./dm-panel.html" target="_blank" rel="noopener">Open DM panel ↗</a> — works in any browser or device.</p>
   </section>
 
-  <p class="hint" style="opacity:0.5;">build 31 — status labels lower</p>
+  <p class="hint" style="opacity:0.5;">build 32 — no bracketed notes in Discord</p>
 `;
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;
