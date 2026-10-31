@@ -484,6 +484,33 @@
     "id": "f1691b4e-a87c-4a2b-8d4a-90537b14b785",
     "private": false
    }
+  },
+  {
+   "id": "10fa8e17-1f09-46ce-8260-01d1bdc3a850",
+   "at": "2026-10-31T14:09:46.529Z",
+   "kind": "show-roll",
+   "roll": {
+    "who": "Radek",
+    "action": "Disarming Attack",
+    "dice": [
+     {
+      "sides": 8,
+      "value": 7,
+      "tint": "brass"
+     }
+    ],
+    "mod": 0,
+    "results": [
+     {
+      "value": 7,
+      "label": "1d8",
+      "tint": ""
+     }
+    ],
+    "detail": "1d8",
+    "id": "10fa8e17-1f09-46ce-8260-01d1bdc3a850",
+    "private": false
+   }
   }
  ]
 }
