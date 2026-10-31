@@ -366,13 +366,16 @@ function doUse(ctx: ActionCtx) {
   lastResult.set(`${ctx.key}|use`, dice.length ? `<b>${dice.map((x) => x.r.total).join(" + ")}</b>` : `<em>posted</em>`);
   freshKey = `${ctx.key}|use`;
   const dcs = ctx.p.dcs.length ? `\n\n**${ctx.p.dcs.join(" · ")}**` : "";
-  const rolled = dice.length ? `\n\n${dice.map((x) => `**${x.r.total}** ${label(x.d)}`).join("\n")}` : "";
+  // Save-for-half abilities also show the halved figure (rounded down) for anyone who saves.
+  const halves = /half as much|half damage|half on a success|half the damage|, half on/i.test(ctx.raw.description);
+  const half = (x: { d: DieSpec; r: Roll }) => (halves && DAMAGE_TYPES.has(x.d.type) && x.d.type !== "healing" ? ` (**${Math.floor(x.r.total / 2)}** on a successful save)` : "");
+  const rolled = dice.length ? `\n\n${dice.map((x) => `**${x.r.total}** ${label(x.d)}${half(x)}`).join("\n")}` : "";
   log(
     {
       who: ctx.dmName,
       action: ctx.p.title,
       text: dice.length
-        ? dice.map((x) => `<span class="big">${x.r.total}</span> ${escapeHtml(label(x.d))} <span class="how">${working(x.r)}</span>`).join("<br>")
+        ? dice.map((x) => `<span class="big">${x.r.total}</span> ${escapeHtml(label(x.d))}${half(x) ? ` <span class="how">(${Math.floor(x.r.total / 2)} on a save)</span>` : ""} <span class="how">${working(x.r)}</span>`).join("<br>")
         : `uses ${escapeHtml(ctx.p.title)}`,
     },
     {
