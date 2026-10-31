@@ -1,3 +1,4 @@
+import { LIVE_STATUS_KEY } from "./live";
 import OBR, { type Item } from "@owlbear-rodeo/sdk";
 import {
   diceCloudLogin,
@@ -65,9 +66,10 @@ app.innerHTML = `
       <span id="gh-status" class="status"></span>
     </div>
     <p class="hint" style="margin-top:8px;"><a id="dm-panel-link" href="./dm-panel.html" target="_blank" rel="noopener">Open DM panel ↗</a> — works in any browser or device.</p>
+    <p id="live-status" class="hint"></p>
   </section>
 
-  <p class="hint" style="opacity:0.5;">build 43 — dice: see-through tray (no dark box)
+  <p class="hint" style="opacity:0.5;">build 44 — rolls arrive live (ntfy), tray warms up first
 `;
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;
@@ -79,6 +81,19 @@ const debugList = document.getElementById("debug-list")!;
 
 const ghTokenInput = document.getElementById("gh-token") as HTMLInputElement;
 const ghStatus = document.getElementById("gh-status")!;
+// live roll channel, as reported by the background page (GM only)
+const liveEl = document.getElementById("live-status")!;
+function renderLive() {
+  let st: { state?: string; code?: string } = {};
+  try { st = JSON.parse(localStorage.getItem(LIVE_STATUS_KEY) || "{}"); } catch { /* none yet */ }
+  liveEl.textContent = !st.code
+    ? ""
+    : st.state === "connected"
+      ? `Live rolls: connected · channel ${st.code} (should match the code in the DM panel)`
+      : `Live rolls: ${st.state ?? "connecting"}… · channel ${st.code} (rolls still arrive via GitHub meanwhile)`;
+}
+renderLive();
+setInterval(renderLive, 2000);
 
 function renderMailboxStatus() {
   const token = getGitHubToken();

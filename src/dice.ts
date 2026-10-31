@@ -446,6 +446,21 @@ async function main() {
     requestAnimationFrame(() => modEl.classList.add("show"));
   };
 
+  // warm-up: draw every die once, parked behind the camera, so the shaders (including the
+  // shadow pass) compile and the numeral textures upload now, not in the first frames of
+  // the throw — that's where the opening stutter came from
+  for (const f of flights) {
+    f.die.group.visible = true;
+    f.die.group.position.set(0, 60, 60);
+    f.die.group.traverse((o) => (o.frustumCulled = false));
+  }
+  renderer.render(scene, camera);
+  for (const f of flights) {
+    f.die.group.visible = false;
+    f.die.group.traverse((o) => (o.frustumCulled = true));
+  }
+  renderer.clear();
+
   const clock = new THREE.Clock();
   const tmpQ = new THREE.Quaternion();
   let hudShown = false;

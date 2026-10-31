@@ -1,3 +1,4 @@
+import { LIVE_STATUS_KEY, liveCode, liveTopic, subscribeLive, type LiveSubscription } from "./live";
 import OBR from "@owlbear-rodeo/sdk";
 import { diceCloudLogin, fetchCreatureStats, fetchCompanionStats, type DiceCloudSession } from "./dicecloud";
 import { writeForgeStats, getCombatRoster } from "./forge";
@@ -175,6 +176,29 @@ async function runCommand(cmd: PanelCommand) {
   log(`Applied ${cmd.entryName} to token ${cmd.itemId}.`);
 }
 
+// the live channel (see live.ts): rolls arrive here within a fraction of a second; the
+// GitHub copy of the same command turns up a few seconds later and is skipped as done
+let live: LiveSubscription | undefined;
+function liveStatus(state: string, topic?: string) {
+  localStorage.setItem(LIVE_STATUS_KEY, JSON.stringify({ state, code: topic ? liveCode(topic) : "", at: Date.now() }));
+}
+async function ensureLive(token: string | undefined) {
+  const topic = token ? await liveTopic(token) : undefined;
+  if (live?.topic === topic) return;
+  live?.close();
+  live = undefined;
+  if (!topic) return liveStatus("off");
+  live = subscribeLive(
+    topic,
+    (cmd) => {
+      if (cmd.kind !== "show-roll" || doneCommands.has(cmd.id)) return; // stat blocks stay on GitHub
+      doneCommands.add(cmd.id);
+      runCommand(cmd).catch((err) => log("Live roll failed:", err));
+    },
+    (state) => liveStatus(state, topic),
+  );
+}
+
 async function pollCommandFile(token: string) {
   const res = await pollCommands(token, commandEtag);
   if (!res) return;
@@ -198,6 +222,7 @@ async function pollStatusFile() {
   try {
     if (isGM === undefined) isGM = (await OBR.player.getRole()) === "GM";
     const token = getGitHubToken();
+    await ensureLive(isGM ? token : undefined);
     if (!isGM || !token) return;
     await pollCommandFile(token).catch((err) => log("Couldn't read panel commands:", err));
     const res = await pollStatuses(token, statusEtag);
@@ -220,6 +245,7 @@ function startStatusPolling() {
   statusHandle = setInterval(pollStatusFile, STATUS_POLL_MS);
 }
 function stopStatusPolling() {
+  ensureLive(undefined);
   if (statusHandle) clearInterval(statusHandle);
   statusHandle = undefined;
 }

@@ -4,6 +4,7 @@
 // (see mailbox.ts), matches each combatant to a bestiary entry from the DM
 // manual, lets the DM roll from the stat block, and posts the results to
 // Discord with flavour text (and full spell text) for the table.
+import { liveCode, liveTopic, publishLive } from "./live";
 import {
   loadAssignments,
   loadBestiary,
@@ -71,6 +72,7 @@ const isPublic = () => read(PUBLIC_KEY) !== "no";
 function renderSettings() {
   const hasToken = !!getToken();
   const hasHook = !!getWebhook();
+  showLiveCode();
   ($<HTMLInputElement>("gh-token")).placeholder = hasToken ? "•••••••• (saved)" : "GitHub token";
   ($<HTMLInputElement>("discord-webhook")).placeholder = hasHook ? "•••••••• (saved)" : "Discord webhook URL";
   const status = $<HTMLElement>("token-status");
@@ -104,6 +106,11 @@ chipsToggle.addEventListener("change", () => {
   document.body.classList.toggle("hide-tile-status", !chipsToggle.checked);
 });
 
+// the live roll channel's code: should match the one in the Owlbear extension's popover
+async function showLiveCode() {
+  const token = getToken();
+  $("live-code").textContent = token ? `Live roll channel: ${liveCode(await liveTopic(token))} (should match the code in the Owlbear extension)` : "";
+}
 const diceToggle = $<HTMLInputElement>("dice-owlbear");
 diceToggle.checked = read("dm-panel/dice-in-owlbear") !== "no";
 diceToggle.addEventListener("change", () => store("dm-panel/dice-in-owlbear", diceToggle.checked ? undefined : "no"));
@@ -300,14 +307,20 @@ type DiceShow = Omit<ShownRoll, "id" | "private">;
 // to everyone (or only the GM, for private rolls). The Discord post waits for the dice to land.
 const DICE_KEY = "dm-panel/dice-in-owlbear";
 const diceEnabled = () => read(DICE_KEY) !== "no";
-const DISCORD_AFTER_DICE_MS = 5000;
-function showDice(show: DiceShow, privateRoll: boolean): boolean {
+// Discord waits until the dice have landed in Owlbear: sooner when the roll went live
+const DISCORD_AFTER_LIVE_DICE_MS = 3500;
+const DISCORD_AFTER_DICE_MS = 5000; // GitHub route
+/** Sends the dice to Owlbear. Undefined if not shown; otherwise resolves to whether it went live. */
+function showDice(show: DiceShow, privateRoll: boolean): Promise<boolean> | undefined {
   const token = getToken();
-  if (!diceEnabled() || !token || !show.dice.length) return false;
+  if (!diceEnabled() || !token || !show.dice.length) return undefined;
   const id = crypto.randomUUID();
   const cmd: ShowRollCommand = { id, at: new Date().toISOString(), kind: "show-roll", roll: { ...show, id, private: privateRoll } };
-  sendCommand(cmd, token).catch(() => {});
-  return true;
+  // live channel first (near-instant); GitHub as the backup, which Owlbear skips if the
+  // live copy already arrived
+  const live = publishLive(token, cmd);
+  live.finally(() => sendCommand(cmd, token).catch(() => {}));
+  return live;
 }
 const d20s = (r: Roll, tint: string): ShownDie[] =>
   r.kept === undefined
@@ -319,10 +332,13 @@ async function log(line: LogLine, embed: Embed, privateRoll = !isPublic(), dice?
   rollLog.unshift(line);
   rollLog.splice(15);
   render();
-  if (dice && showDice(dice, privateRoll) && !privateRoll) {
+  const shown = dice ? showDice(dice, privateRoll) : undefined;
+  if (shown && !privateRoll) {
     line.status = "Rolling in Owlbear…";
     renderLog();
-    await new Promise((r) => setTimeout(r, DISCORD_AFTER_DICE_MS));
+    const t0 = Date.now();
+    const wait = (await shown) ? DISCORD_AFTER_LIVE_DICE_MS : DISCORD_AFTER_DICE_MS;
+    await new Promise((r) => setTimeout(r, Math.max(0, wait - (Date.now() - t0))));
   }
   const status = await postToDiscord(embed, privateRoll);
   line.status = status === "posted" ? "" : status === "private" ? "Private" : status === "no-webhook" ? "Not posted: no webhook" : "Discord post failed";
