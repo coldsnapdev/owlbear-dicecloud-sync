@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-10-31T12:05:10.859Z",
+ "savedAt": "2026-10-31T12:05:14.001Z",
  "tokens": {
   "0ca300c3-9fd8-4017-923f-2ab85b976457": [
    {
@@ -15,6 +15,10 @@
    {
     "key": "prone",
     "label": "Prone"
+   },
+   {
+    "key": "restrained",
+    "label": "Restrained"
    }
   ]
  }
