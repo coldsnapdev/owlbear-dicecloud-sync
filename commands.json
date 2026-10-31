@@ -616,6 +616,32 @@
     "id": "e3e80673-83f7-48d1-a6f9-074474d148f8",
     "private": false
    }
+  },
+  {
+   "id": "2ff3bf62-213e-484f-9e39-e1e0fbe6fc02",
+   "at": "2026-10-31T14:36:54.430Z",
+   "kind": "show-roll",
+   "roll": {
+    "who": "Idony",
+    "action": "Shortsword",
+    "dice": [
+     {
+      "sides": 20,
+      "value": 3,
+      "tint": "brass"
+     }
+    ],
+    "mod": 4,
+    "results": [
+     {
+      "value": 7,
+      "label": "to hit"
+     }
+    ],
+    "detail": "d20 3 + 4",
+    "id": "2ff3bf62-213e-484f-9e39-e1e0fbe6fc02",
+    "private": false
+   }
   }
  ]
 }
