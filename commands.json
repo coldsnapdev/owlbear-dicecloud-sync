@@ -72,6 +72,109 @@
     "com.battle-system.forge/Z008": 30,
     "com.battle-system.forge/Z021": 13
    }
+  },
+  {
+   "id": "a53d8875-215b-4464-b61f-c7bfe6cb6b09",
+   "at": "2026-10-31T11:07:28.578Z",
+   "kind": "apply-statblock",
+   "itemId": "7aa6256d-b943-47ca-87a1-aebff92c5855",
+   "entryName": "Radek",
+   "forge": {
+    "com.battle-system.forge/name": "Radek",
+    "com.battle-system.forge/Z034": [],
+    "com.battle-system.forge/Z035": [
+     {
+      "id": "radek-001",
+      "name": "Trait: Extra Attack",
+      "description": "Radek makes two attacks when he takes the Attack action."
+     },
+     {
+      "id": "radek-002",
+      "name": "Trait: Battle Master (3 Superiority Dice d8)",
+      "description": "Uses Disarming Attack, Pushing Attack, and Trip Attack manoeuvres."
+     },
+     {
+      "id": "radek-003",
+      "name": "Trait: Action Surge (1/short rest)",
+      "description": "Takes one additional action on his turn. Use when a player breaks through the bottleneck or on round 2 if the party is gaining ground."
+     },
+     {
+      "id": "radek-x04",
+      "name": "Trait: Fights for the Joy of It",
+      "description": "Fights with enjoyment, not efficiency. Last of his crew to go down, and not gracefully."
+     },
+     {
+      "id": "radek-004",
+      "name": "Longsword (x2)",
+      "description": "Melee Weapon Attack [1d20+5] to hit, reach 5 ft., one target. [1d8+3] slashing damage. Makes two attacks per Attack action."
+     },
+     {
+      "id": "radek-005",
+      "name": "Disarming Attack",
+      "description": "Expend one superiority die. On hit, target must succeed on DC 13 Str save or drop one held item. Add [1d8] to damage."
+     },
+     {
+      "id": "radek-006",
+      "name": "Trip Attack",
+      "description": "Expend one superiority die. On hit, target must succeed on DC 13 Str save or be knocked prone. Add [1d8] to damage."
+     },
+     {
+      "id": "radek-007",
+      "name": "Pushing Attack",
+      "description": "Expend one superiority die. On hit, target must succeed on DC 13 Str save or be pushed 15 ft. away. Add [1d8] to damage."
+     },
+     {
+      "id": "radek-008",
+      "name": "Bonus Action: Second Wind (1/short rest)",
+      "description": "Regains [1d10+4] hit points."
+     },
+     {
+      "id": "radek-x02",
+      "name": "Bonus Action: Intimidating Glare",
+      "description": "One creature within 30 ft. that can see Radek makes a Wisdom (Insight) check contested by his Intimidation (+5). If Radek wins, the creature has disadvantage on its next attack roll against him."
+     }
+    ],
+    "com.battle-system.forge/Z003": "Neutral",
+    "com.battle-system.forge/Z007": 16,
+    "com.battle-system.forge/Z036": [],
+    "com.battle-system.forge/Z010": 0,
+    "com.battle-system.forge/Z028": 3,
+    "com.battle-system.forge/Z025": 4,
+    "com.battle-system.forge/Z016": 1,
+    "com.battle-system.forge/Z022": 16,
+    "com.battle-system.forge/Z011": 0,
+    "com.battle-system.forge/Z019": 14,
+    "com.battle-system.forge/Z024": 1,
+    "com.battle-system.forge/Z018": 13,
+    "com.battle-system.forge/Z012": 0,
+    "com.battle-system.forge/Z005": 52,
+    "com.battle-system.forge/Z026": 0,
+    "com.battle-system.forge/Z032": "",
+    "com.battle-system.forge/Z020": 11,
+    "com.battle-system.forge/Z040": [],
+    "com.battle-system.forge/Z015": "Common",
+    "com.battle-system.forge/Z038": [],
+    "com.battle-system.forge/Z001": 0,
+    "com.battle-system.forge/Z006": 52,
+    "com.battle-system.forge/Z029": 2,
+    "com.battle-system.forge/Z037": [],
+    "com.battle-system.forge/Z031": "",
+    "com.battle-system.forge/Z023": 5,
+    "com.battle-system.forge/Z041": "",
+    "com.battle-system.forge/Z013": "Passive Perception 11",
+    "com.battle-system.forge/Z002": "Medium",
+    "com.battle-system.forge/Z014": "Athletics +5, Intimidation +5",
+    "com.battle-system.forge/Z004": "Humanoid",
+    "com.battle-system.forge/Z039": [],
+    "com.battle-system.forge/Z033": "",
+    "com.battle-system.forge/Z017": 17,
+    "com.battle-system.forge/Z009": 0,
+    "com.battle-system.forge/Z042": 0,
+    "com.battle-system.forge/Z030": "",
+    "com.battle-system.forge/Z027": 1,
+    "com.battle-system.forge/Z008": 30,
+    "com.battle-system.forge/Z021": 12
+   }
   }
  ]
 }
