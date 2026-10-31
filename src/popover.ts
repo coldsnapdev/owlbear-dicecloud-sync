@@ -67,7 +67,7 @@ app.innerHTML = `
     <p class="hint" style="margin-top:8px;"><a id="dm-panel-link" href="./dm-panel.html" target="_blank" rel="noopener">Open DM panel ↗</a> — works in any browser or device.</p>
   </section>
 
-  <p class="hint" style="opacity:0.5;">build 29 — apply stat block to token</p>
+  <p class="hint" style="opacity:0.5;">build 30 — status labels below the name</p>
 `;
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;
