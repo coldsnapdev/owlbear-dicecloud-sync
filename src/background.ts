@@ -1,8 +1,9 @@
-import { LINK_STATUS_KEY, LIVE_STATUS_KEY, RELAY_STATUS_KEY, listenLocal, type LinkEnvelope, type LiveCombatant, type LiveMessage, type OwlbearMessage, liveCode, liveTopic, subscribeLive, type LiveSubscription } from "./live";
+import { LINK_STATUS_KEY, LIVE_STATUS_KEY, RELAY_STATUS_KEY, listenLocal, type HpMessage, type HpResult, type LinkEnvelope, type LiveCombatant, type LiveMessage, type OwlbearMessage, liveCode, liveTopic, subscribeLive, type LiveSubscription } from "./live";
 import OBR from "@owlbear-rodeo/sdk";
-import { diceCloudLogin, fetchCreatureStats, fetchCompanionStats, type DiceCloudSession } from "./dicecloud";
-import { writeForgeStats, getCombatRoster } from "./forge";
-import { getStoredCredentials, reconcileMappings, type Mapping } from "./config";
+import { diceCloudLogin, fetchCreatureStats, fetchCompanionStats, fetchHealthBars, type DiceCloudSession } from "./dicecloud";
+import { damageAttribute } from "./dicecloudWrite";
+import { writeForgeStats, getCombatRoster, readForgeStats } from "./forge";
+import { getMappings, getStoredCredentials, reconcileMappings, type Mapping } from "./config";
 import { getGitHubToken, rosterFingerprint, saveRoster, toRosterEntries, pollStatuses, pollCommands, type StatusFile, type PanelCommand } from "./mailbox";
 import { buildLabel, buildShape, type Item } from "@owlbear-rodeo/sdk";
 import { statusDef, tokenText, CUSTOM_COLOUR } from "./statuses";
@@ -227,6 +228,15 @@ function handleLiveMessage(msg: LiveMessage) {
     }
     return;
   }
+  if (msg.kind === "hp") {
+    if (doneCommands.has(msg.id)) return;
+    doneCommands.add(msg.id);
+    changeHp(msg).then(
+      (r) => sendToPanel(r),
+      (err) => sendToPanel({ kind: "hp-result", ref: msg.id, itemId: msg.itemId, ok: false, via: "forge", error: err instanceof Error ? err.message : String(err) }),
+    );
+    return;
+  }
   if (msg.kind === "roster-request") {
     pushRoster(true).catch((err) => log("Couldn't send the roster:", err));
     return;
@@ -287,6 +297,63 @@ async function drawTargets() {
   if (add.length) await OBR.scene.items.addItems(add);
 }
 
+// --- HP changes from the panel ------------------------------------------------------------
+// Sheet-linked tokens (the party) change on their DiceCloud sheet, then Forge is updated
+// straight away so the table sees it at once. Everyone else changes in Forge directly.
+// Temp HP soaks damage first; healing never goes past max.
+const sheetMultipliers = new Map<string, Record<string, number>>();
+function nextHp(before: { hp: number; temp: number; max?: number }, msg: HpMessage) {
+  if (msg.set) return { ...msg.set, max: before.max };
+  const d = msg.test ? 0 : msg.damage ?? 0;
+  if (d >= 0) {
+    const fromTemp = Math.min(before.temp, d);
+    return { hp: Math.max(0, before.hp - (d - fromTemp)), temp: before.temp - fromTemp, max: before.max, fromTemp, toHp: d - fromTemp };
+  }
+  const hp = before.max !== undefined ? Math.min(before.max, before.hp - d) : before.hp - d;
+  return { hp, temp: before.temp, max: before.max, healed: hp - before.hp };
+}
+async function changeHp(msg: HpMessage): Promise<HpResult> {
+  const [item] = await OBR.scene.items.getItems([msg.itemId]);
+  if (!item) throw new Error("that token isn't in this scene");
+  const forge = readForgeStats(item.metadata);
+  const mapping = msg.forgeOnly ? undefined : (await getMappings()).find((m) => m.itemId === msg.itemId);
+  const writeForge = (after: { hp: number; temp: number }) =>
+    OBR.scene.items.updateItems([msg.itemId], (items) => {
+      for (const it of items) {
+        it.metadata["com.battle-system.forge/Z005"] = String(after.hp);
+        it.metadata["com.battle-system.forge/Z042"] = String(after.temp);
+      }
+    });
+
+  if (mapping) {
+    const s = await ensureSession();
+    if (!s) throw new Error("not logged in to DiceCloud (check the extension popover)");
+    const bars = await fetchHealthBars(mapping.creatureId, s.token, mapping.companion);
+    if (!bars.hp) throw new Error("couldn't find the HP bar on that sheet");
+    const before = { hp: Number(bars.hp.value) || 0, temp: Number(bars.temp?.value) || 0, max: Number(bars.hp.total) || undefined };
+    const after = nextHp(before, msg);
+    if (msg.test) {
+      await damageAttribute(s.token, mapping.creatureId, bars.hp, "increment", 0);
+    } else if (msg.set) {
+      await damageAttribute(s.token, mapping.creatureId, bars.hp, "set", after.hp);
+      if (bars.temp && after.temp !== before.temp) await damageAttribute(s.token, mapping.creatureId, bars.temp, "set", after.temp);
+    } else if ((msg.damage ?? 0) >= 0) {
+      if ("fromTemp" in after && after.fromTemp && bars.temp) await damageAttribute(s.token, mapping.creatureId, bars.temp, "increment", after.fromTemp);
+      if ("toHp" in after && after.toHp) await damageAttribute(s.token, mapping.creatureId, bars.hp, "increment", after.toHp);
+    } else {
+      await damageAttribute(s.token, mapping.creatureId, bars.hp, "increment", -("healed" in after ? after.healed ?? 0 : 0));
+    }
+    if (!msg.test) await writeForge(after);
+    log(`HP on ${mapping.itemName}'s sheet: ${before.hp}(+${before.temp}) → ${after.hp}(+${after.temp})`);
+    return { kind: "hp-result", ref: msg.id, itemId: msg.itemId, ok: true, via: "dicecloud", before, after };
+  }
+
+  const before = { hp: Number(forge.currentHP) || 0, temp: Number(forge.tempHP) || 0, max: Number(forge.maxHP) || undefined };
+  const after = nextHp(before, msg);
+  if (!msg.test) await writeForge(after);
+  return { kind: "hp-result", ref: msg.id, itemId: msg.itemId, ok: true, via: "forge", before, after };
+}
+
 // --- Owlbear → panel: the live roster (with HP) and the GM's selection -----------------
 function sendToPanel(m: OwlbearMessage) {
   try {
@@ -299,9 +366,11 @@ let lastRosterSent = "";
 async function pushRoster(force = false) {
   if (!panelWindow || !(await OBR.scene.isReady())) return;
   const items = await OBR.scene.items.getItems();
+  const linked = new Set((await getMappings()).map((m) => m.itemId));
   const combatants: LiveCombatant[] = getCombatRoster(items).map((c) => ({
     itemId: c.itemId, name: c.name, realName: c.realName, initiative: c.initiative,
     ac: c.ac, hp: c.currentHP, maxHp: c.maxHP, tempHp: c.tempHP,
+    sheet: linked.has(c.itemId) || undefined, multipliers: sheetMultipliers.get(c.itemId),
   }));
   const forgeInfo = await forgeDiagnostics(items).catch((err) => `couldn't read: ${err}`); // never let this block the roster
   const fp = JSON.stringify([combatants, forgeInfo]);
@@ -508,6 +577,7 @@ async function syncOnce() {
       const stats = mapping.companion
         ? await fetchCompanionStats(mapping.creatureId, activeSession?.token)
         : await fetchCreatureStats(mapping.creatureId, activeSession?.token);
+      if (stats.multipliers) sheetMultipliers.set(mapping.itemId, stats.multipliers);
       const fingerprint = `${stats.currentHP}|${stats.maxHP}|${stats.ac}|${stats.tempHP}`;
 
       if (lastSeen.get(mapping.itemId) === fingerprint) {

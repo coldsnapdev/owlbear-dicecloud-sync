@@ -4,7 +4,7 @@
 // (see mailbox.ts), matches each combatant to a bestiary entry from the DM
 // manual, lets the DM roll from the stat block, and posts the results to
 // Discord with flavour text (and full spell text) for the table.
-import { liveCode, liveTopic, onOwlbear, owlbearWindow, publishLive, relayStatus, sendDirect, sendLocal, type LiveCombatant, type LiveMessage } from "./live";
+import { liveCode, liveTopic, onOwlbear, owlbearWindow, publishLive, relayStatus, sendDirect, sendLocal, type HpResult, type LiveCombatant, type LiveMessage } from "./live";
 import {
   loadAssignments,
   loadBestiary,
@@ -173,13 +173,15 @@ function targetBar(): string {
   }</div>`;
 }
 /** "hits Idony, misses Radek" against each target's AC; undefined when nobody's targeted. */
-function versus(total: number, nat?: "crit" | "fumble"): { dm: string; pub: string; tag: string } | undefined {
+const lastHits = new Map<string, Map<string, boolean | undefined>>(); // action key -> target -> hit?
+function versus(total: number, nat?: "crit" | "fumble", key?: string): { dm: string; pub: string; tag: string } | undefined {
   const list = targets.map((id) => combatant(id)).filter((c): c is RosterEntry => !!c);
   if (!list.length) return undefined;
   const rows = list.map((c) => {
     const hit = nat === "crit" ? true : nat === "fumble" ? false : c.ac === undefined ? undefined : total >= c.ac;
     return { c, hit };
   });
+  if (key) lastHits.set(key, new Map(rows.map(({ c, hit }) => [c.itemId, hit])));
   const word = (h: boolean | undefined) => (h === undefined ? "vs" : h ? "hits" : "misses");
   return {
     dm: rows.map(({ c, hit }) => `${word(hit)} <b>${escapeHtml(c.realName || c.name)}</b>${c.ac !== undefined ? ` <span class="how">AC ${c.ac}</span>` : ""}`).join(", "),
@@ -191,6 +193,27 @@ async function showLiveCode() {
   const token = getToken();
   $("live-code").textContent = token ? `Live roll channel: ${liveCode(await liveTopic(token))} (should match the code in the Owlbear extension)` : "";
 }
+// "Test DiceCloud write": a 0-point change on every sheet-linked combatant
+const testRefs = new Map<string, string>();
+const testOut: string[] = [];
+$("dc-test").addEventListener("click", async () => {
+  const sheets = (liveRoster ?? []).filter((c) => c.sheet);
+  testOut.length = 0;
+  $("dc-test-result").textContent = sheets.length ? "Testing…" : "No sheet-linked combatants on the list (open the panel from Owlbear, with the party in combat).";
+  for (const c of sheets) {
+    const ref = crypto.randomUUID();
+    testRefs.set(ref, c.realName || c.name);
+    if (!(await fastSend({ kind: "hp", id: ref, at: new Date().toISOString(), itemId: c.itemId, test: true }))) {
+      testOut.push(`${c.realName || c.name}: Owlbear not linked`);
+    }
+  }
+});
+onOwlbear((m) => {
+  if (m.kind !== "hp-result" || !testRefs.has(m.ref)) return;
+  testOut.push(`${testRefs.get(m.ref)}: ${m.ok ? "✓ can write" : `✗ ${m.error}`}`);
+  testRefs.delete(m.ref);
+  $("dc-test-result").textContent = testOut.join(" · ");
+});
 const followToggle = $<HTMLInputElement>("follow-selection");
 followToggle.checked = followSelection();
 followToggle.addEventListener("change", () => store(FOLLOW_KEY, followToggle.checked ? undefined : "no"));
@@ -229,8 +252,7 @@ function entryFor(c: RosterEntry): { entry?: BestiaryEntry; manual: boolean } {
 // --- Dice -------------------------------------------------------------------------------
 // Forge writes dice in square brackets: [1d20+7] is a to-hit roll, anything
 // else is damage or other dice. To-hit and damage are deliberately separate
-// clicks: at the table the DM asks "does 15 beat your AC?" and the player
-// answers, so the panel never compares against AC itself.
+// clicks. With targets chosen, the to-hit is also compared against each target's AC.
 const DICE_RE = /^(\d*)d(\d+)\s*([+-]\s*\d+)?$/i;
 
 interface Roll { total: number; dice: number[]; mod: number; kept?: number; sides: number }
@@ -481,7 +503,7 @@ function doAttack(ctx: ActionCtx, mode?: "adv" | "dis") {
   else critPending.delete(ctx.key);
   const how = r.kept !== undefined ? `d20 ${r.dice.join(" / ")} ${mode === "adv" ? "with advantage" : "with disadvantage"}${signed(r.mod)}` : `d20 ${d20}${signed(r.mod)}`;
   const tag = nat === "crit" ? "Natural 20!" : nat === "fumble" ? "Natural 1" : "";
-  const vs = versus(r.total, nat);
+  const vs = versus(r.total, nat, ctx.key);
   lastResult.set(`${ctx.key}|hit`, `<b>${r.total}</b>${tag ? ` <em class="${nat}">${tag}</em>` : ""}`);
   freshKey = `${ctx.key}|hit`;
   log(
@@ -509,6 +531,8 @@ function doUse(ctx: ActionCtx) {
   const halves = /half as much|half damage|half on a success|half the damage|, half on/i.test(ctx.raw.description);
   const half = (x: { d: DieSpec; r: Roll }) => (halves && DAMAGE_TYPES.has(x.d.type) && x.d.type !== "healing" ? ` (**${Math.floor(x.r.total / 2)}** on a successful save)` : "");
   const rolled = dice.length ? `\n\n${dice.map((x) => `**${x.r.total}** ${label(x.d)}${half(x)}`).join("\n")}` : "";
+  const hpParts = dice.filter((x) => DAMAGE_TYPES.has(x.d.type) || x.d.type === "hit points").map((x) => ({ type: x.d.type === "hit points" ? "healing" : x.d.type, amount: x.r.total }));
+  startResolve(ctx, hpParts, { dc: ctx.p.dcs.find((d) => / (Str|Dex|Con|Int|Wis|Cha)$/.test(d)), half: halves });
   log(
     {
       who: ctx.dmName,
@@ -541,6 +565,7 @@ function doDamage(ctx: ActionCtx) {
   const crit = critPending.has(ctx.key); // stays until this action's next to-hit, so every die in a crit doubles
   const rolls = ctx.p.damage.map((d) => ({ d, r: rollExpr(d.expr, { double: crit })! })).filter((x) => x.r);
   if (!rolls.length) return;
+  startResolve(ctx, rolls.map((x) => ({ type: x.d.type, amount: x.r.total })), { fromAttack: true });
   lastResult.set(`${ctx.key}|dmg`, `<b>${rolls.map((x) => x.r.total).join(" + ")}</b>${crit ? ` <em class="crit">crit</em>` : ""}`);
   freshKey = `${ctx.key}|dmg`;
   log(
@@ -906,6 +931,241 @@ async function applyToToken(itemId: string, entryId: string) {
   }
 }
 
+// --- Resolve: damage (or healing) waits here until the DM applies it ------------------
+// One row per target, one multiplier per damage type (pre-set from the bestiary or the
+// sheet's resistances), a save prompt when the ability has a DC, then Apply: Owlbear
+// changes the token (and the DiceCloud sheet for the party). Undo for 30 seconds.
+interface ResolveTarget {
+  itemId: string;
+  missed?: boolean;
+  mults: number[];
+  save?: "saved" | "failed";
+  saveText?: string;
+  state?: "applying" | "done" | "error";
+  ref?: string;
+  result?: HpResult;
+  error?: string;
+  undoUntil?: number;
+}
+interface Resolve {
+  id: string;
+  dmWho: string;
+  shownWho: string;
+  action: string;
+  parts: { type: string; amount: number }[];
+  healing: boolean;
+  dc?: { dc: number; ability: string };
+  half: boolean;
+  targets: ResolveTarget[];
+  posted?: boolean;
+}
+let resolve: Resolve | undefined;
+let scrollToResolve = false;
+const UNDO_MS = 30_000;
+const MULTS: [number, string][] = [[0, "×0"], [0.5, "½"], [1, "×1"], [2, "×2"]];
+
+function defaultMult(c: RosterEntry, type: string): number {
+  const live = liveRoster?.find((x) => x.itemId === c.itemId);
+  if (live?.multipliers && type in live.multipliers) return live.multipliers[type];
+  const e = entryFor(c).entry;
+  if (!e) return 1;
+  const f = e.forge as Record<string, any>;
+  const has = (k: string) => new RegExp(`\\b${type}\\b`, "i").test(String(f[F + k] ?? ""));
+  return has("Z032") ? 0 : has("Z031") ? 0.5 : has("Z030") ? 2 : 1;
+}
+function startResolve(ctx: ActionCtx, parts: { type: string; amount: number }[], opts: { fromAttack?: boolean; dc?: string; half?: boolean }) {
+  const list = targets.map((id) => combatant(id)).filter((c): c is RosterEntry => !!c);
+  if (!list.length || !parts.length) return;
+  const healing = parts.every((p) => p.type === "healing" || p.type === "hit points");
+  const hits = opts.fromAttack ? lastHits.get(ctx.key) : undefined;
+  const dcm = opts.dc?.match(/DC (\d+) (\w+)/);
+  resolve = {
+    id: crypto.randomUUID(),
+    dmWho: ctx.dmName,
+    shownWho: ctx.shown,
+    action: publicName(ctx),
+    parts,
+    healing,
+    dc: dcm && !healing ? { dc: Number(dcm[1]), ability: dcm[2] } : undefined,
+    half: !!opts.half,
+    targets: list.map((c) => ({
+      itemId: c.itemId,
+      missed: hits?.get(c.itemId) === false || undefined,
+      mults: parts.map((p) => (healing ? 1 : defaultMult(c, p.type))),
+    })),
+  };
+  scrollToResolve = true;
+}
+function amountFor(r: Resolve, t: ResolveTarget): number {
+  if (t.missed) return 0;
+  return r.parts.reduce((sum, p, i) => {
+    let v = p.amount;
+    if (r.healing) return sum + v;
+    if (r.dc && t.save === "saved") v = r.half ? Math.floor(v / 2) : 0;
+    const m = t.mults[i];
+    v = m === 0 ? 0 : m === 0.5 ? Math.floor(v / 2) : m === 2 ? v * 2 : v;
+    return sum + v;
+  }, 0);
+}
+const needsSave = (r: Resolve, t: ResolveTarget) => !!r.dc && !t.missed && !t.save;
+function npcSaveBonus(c: RosterEntry, ability: string): number | undefined {
+  const e = entryFor(c).entry;
+  if (!e) return undefined;
+  const a = checkTable(e.forge as Record<string, any>).abilities.find((x) => x.key === ability);
+  return a?.save;
+}
+function rollSave(t: ResolveTarget) {
+  const r = resolve;
+  const c = combatant(t.itemId);
+  if (!r?.dc || !c) return;
+  const bonus = npcSaveBonus(c, r.dc.ability) ?? 0;
+  const roll = rollExpr(`1d20${bonus >= 0 ? "+" : ""}${bonus}`)!;
+  const d20 = roll.dice[0];
+  const ok = d20 === 20 ? true : d20 === 1 ? false : roll.total >= r.dc.dc;
+  t.save = ok ? "saved" : "failed";
+  t.saveText = `${roll.total} (d20 ${d20}${signed(bonus)})`;
+  const label = `${r.dc.ability} save`;
+  log(
+    { who: c.realName || c.name, action: label, text: `<span class="big">${roll.total}</span> vs DC ${r.dc.dc} <span class="how">d20 ${d20}${signed(bonus)}</span> <em class="${ok ? "crit" : "fumble"}">${ok ? "Saved" : "Failed"}</em>` },
+    { author: { name: c.name }, description: `${c.name} makes a ${label} against ${r.shownWho}'s ${r.action}:\n\n**${roll.total}** — **${ok ? "Saved" : "Failed"}**`, color: ok ? COLOUR.crit : COLOUR.fumble },
+    undefined,
+    { who: c.name, action: label, dice: d20s(roll, "verdigris"), mod: roll.mod, results: [{ value: roll.total, label: `vs DC ${r.dc.dc}` }], detail: `d20 ${d20}${signed(bonus)}`, tag: ok ? "Saved" : "Failed", tone: ok ? "crit" : "fumble" },
+  );
+}
+async function applyTarget(t: ResolveTarget, forgeOnly = false) {
+  const r = resolve;
+  if (!r || t.state === "applying" || t.state === "done") return;
+  const amount = amountFor(r, t);
+  t.state = "applying";
+  t.error = undefined;
+  t.ref = crypto.randomUUID();
+  render();
+  const sent = await fastSend({ kind: "hp", id: t.ref, at: new Date().toISOString(), itemId: t.itemId, damage: r.healing ? -amount : amount, forgeOnly });
+  if (!sent) {
+    t.state = "error";
+    t.error = "Owlbear isn't linked: open the panel from the extension's link";
+    render();
+  }
+}
+function applyAll() {
+  const r = resolve;
+  if (!r) return;
+  for (const t of r.targets) if (!t.state && !needsSave(r, t)) applyTarget(t);
+}
+function undoTarget(t: ResolveTarget) {
+  if (!t.result?.before) return;
+  const ref = crypto.randomUUID();
+  t.undoUntil = undefined;
+  fastSend({ kind: "hp", id: ref, at: new Date().toISOString(), itemId: t.itemId, set: { hp: t.result.before.hp, temp: t.result.before.temp } });
+  log({ who: combatant(t.itemId)?.realName || "?", action: "Undo", text: `HP put back to ${t.result.before.hp}${t.result.before.temp ? ` (+${t.result.before.temp})` : ""}` }, { description: "" }, true);
+  t.state = undefined;
+  t.result = undefined;
+  if (resolve) resolve.posted = false;
+  render();
+}
+// Owlbear reports each change; once every target is settled, Discord gets the outcome.
+onOwlbear((m) => {
+  if (m.kind !== "hp-result" || !resolve) return;
+  const t = resolve.targets.find((x) => x.ref === m.ref);
+  if (!t) return;
+  if (m.ok) {
+    t.state = "done";
+    t.result = m;
+    t.undoUntil = Date.now() + UNDO_MS;
+    setTimeout(render, UNDO_MS + 50);
+  } else {
+    t.state = "error";
+    t.error = m.error;
+  }
+  maybePostOutcome();
+  render();
+});
+function maybePostOutcome() {
+  const r = resolve;
+  if (!r || r.posted) return;
+  const settled = r.targets.filter((t) => !t.missed);
+  if (!settled.length || settled.some((t) => t.state !== "done")) return;
+  r.posted = true;
+  const lines = settled.map((t) => {
+    const c = combatant(t.itemId);
+    const name = c?.name ?? "?";
+    const amt = amountFor(r, t);
+    const conc = !r.healing && amt > 0 && (statuses[t.itemId] ?? []).some((s) => s.key === "concentrating");
+    const main = r.healing ? `**${name}** regains **${amt}** hit points` : amt > 0 ? `**${name}** takes **${amt}** damage` : `**${name}** takes no damage`;
+    return main + (conc ? `\n*${name} must make a Constitution save to keep concentrating: DC ${Math.min(30, Math.max(10, Math.floor(amt / 2)))}*` : "");
+  });
+  log(
+    { who: r.dmWho, action: r.action, text: lines.map((l) => l.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\*(.+?)\*/g, "<i>$1</i>")).join("<br>") },
+    { author: { name: r.shownWho }, title: r.action, description: lines.join("\n"), color: r.healing ? COLOUR.crit : COLOUR.brass },
+  );
+  setTargets([]); // resolved: rings come off
+}
+function resolveCard(): string {
+  const r = resolve;
+  if (!r) return "";
+  const e = escapeHtml;
+  const rows = r.targets.map((t, ti) => {
+    const c = combatant(t.itemId);
+    if (!c) return "";
+    const amt = amountFor(r, t);
+    const pc = !!liveRoster?.find((x) => x.itemId === t.itemId)?.sheet;
+    const save = !r.dc || t.missed
+      ? ""
+      : t.save
+        ? `<span class="rs-save ${t.save}">${t.save === "saved" ? "Saved" : "Failed"}${t.saveText ? ` <small>${e(t.saveText)}</small>` : ""}</span><button type="button" class="rs-mini" data-rs="clear-save" data-t="${ti}">change</button>`
+        : entryFor(c).entry && !pc
+          ? `<button type="button" class="rs-btn rs-roll" data-rs="roll-save" data-t="${ti}">Roll ${e(r.dc.ability)} save ${fmtMod(npcSaveBonus(c, r.dc.ability) ?? 0)}</button>`
+          : `<span class="rs-ask">${e(r.dc.ability)} save?</span><button type="button" class="rs-btn" data-rs="saved" data-t="${ti}">Saved</button><button type="button" class="rs-btn" data-rs="failed" data-t="${ti}">Failed</button>`;
+    const parts = r.healing || t.missed
+      ? ""
+      : r.parts.map((p, pi) => `<span class="rs-part"><b>${p.amount}</b> <i class="t-${e(p.type)}">${e(p.type)}</i><span class="seg">${MULTS.map(([m, l]) => `<button type="button" class="rs-m ${t.mults[pi] === m ? "on" : ""}" data-rs="mult" data-t="${ti}" data-p="${pi}" data-m="${m}" ${t.state ? "disabled" : ""}>${l}</button>`).join("")}</span></span>`).join("");
+    const res = t.result?.after;
+    const after = t.state === "done" && res ? `<span class="rs-done">${t.result!.before!.hp}${t.result!.before!.temp ? `+${t.result!.before!.temp}` : ""} → <b>${res.hp}</b>${res.temp ? `+${res.temp}` : ""}${res.max ? `/${res.max}` : ""} <small>${t.result!.via === "dicecloud" ? "sheet" : "Forge"}</small></span>${t.undoUntil && t.undoUntil > Date.now() ? `<button type="button" class="rs-mini" data-rs="undo" data-t="${ti}">Undo</button>` : ""}${res.hp === 0 && !r.healing ? `<button type="button" class="rs-mini" data-rs="ko" data-t="${ti}">${pc ? "Unconscious" : "Unconscious / dead"}</button>` : ""}` : "";
+    const action = t.missed
+      ? `<span class="rs-missed">Missed</span><button type="button" class="rs-mini" data-rs="hit-anyway" data-t="${ti}">Hit anyway</button>`
+      : t.state === "done"
+        ? after
+        : t.state === "applying"
+          ? `<span class="rs-wait">Applying…</span>`
+          : `<button type="button" class="rs-btn rs-apply" data-rs="apply" data-t="${ti}" ${needsSave(r, t) ? "disabled" : ""}>${r.healing ? "Heal" : "Apply"} ${amt}</button><button type="button" class="rs-mini" data-rs="drop" data-t="${ti}" title="Leave this target out">×</button>`;
+    const err = t.state === "error" ? `<div class="rs-err">${e(t.error ?? "Failed")}${pc ? ` <button type="button" class="rs-mini" data-rs="forge-only" data-t="${ti}">Apply to Forge only</button>` : ""}</div>` : "";
+    const conc = t.state === "done" && !r.healing && amt > 0 && (statuses[t.itemId] ?? []).some((s) => s.key === "concentrating") ? `<div class="rs-note">Concentration save: DC ${Math.min(30, Math.max(10, Math.floor(amt / 2)))}</div>` : "";
+    const rot = t.state === "done" && r.healing && (statuses[t.itemId] ?? []).some((s) => s.key === "rotten") ? `<div class="rs-note">Rotten: magical healing clears all stacks</div>` : "";
+    return `<div class="rs-row ${t.state ?? ""}"><div class="rs-who">${e(c.realName || c.name)}${pc ? ` <small title="Changes go to their DiceCloud sheet">sheet</small>` : ""}${c.hp !== undefined ? ` <small>${c.hp}${c.tempHp ? `+${c.tempHp}` : ""}/${c.maxHp ?? "?"}</small>` : ""}</div><div class="rs-mid">${save}${parts}</div><div class="rs-act">${action}</div>${err}${conc}${rot}</div>`;
+  });
+  const open = r.targets.some((t) => !t.state && !t.missed);
+  return `<div class="resolve">
+    <div class="rs-head"><span class="rs-title">${r.healing ? "Healing" : "Damage"} · ${e(r.dmWho)} · ${e(r.action)}</span>${r.dc ? `<span class="dc">DC ${r.dc.dc} ${e(r.dc.ability)}${r.half ? " · half on save" : ""}</span>` : ""}
+    <span class="rs-total">${r.parts.map((p) => `${p.amount} ${e(p.type)}`).join(" + ")}</span>
+    ${open ? `<button type="button" class="rs-btn rs-all" data-rs="all">Apply all</button>` : ""}<button type="button" class="rs-mini" data-rs="close" title="Close without applying anything else">Close</button></div>
+    ${rows.join("")}
+  </div>`;
+}
+function wireResolve() {
+  app.querySelectorAll<HTMLButtonElement>("[data-rs]").forEach((b) =>
+    b.addEventListener("click", () => {
+      const r = resolve;
+      if (!r) return;
+      const t = r.targets[Number(b.dataset.t)];
+      const op = b.dataset.rs;
+      if (op === "close") resolve = undefined;
+      else if (op === "all") applyAll();
+      else if (!t) return;
+      else if (op === "mult") t.mults[Number(b.dataset.p)] = Number(b.dataset.m);
+      else if (op === "saved" || op === "failed") t.save = op;
+      else if (op === "clear-save") { t.save = undefined; t.saveText = undefined; }
+      else if (op === "roll-save") rollSave(t);
+      else if (op === "apply") return applyTarget(t);
+      else if (op === "forge-only") { t.state = undefined; return applyTarget(t, true); }
+      else if (op === "undo") return undoTarget(t);
+      else if (op === "drop") r.targets.splice(r.targets.indexOf(t), 1);
+      else if (op === "hit-anyway") t.missed = undefined;
+      else if (op === "ko") { addStatus(t.itemId, "unconscious", false); return; }
+      render();
+    }),
+  );
+}
+
 function hpBar(c: RosterEntry): string {
   if (c.hp === undefined || !c.maxHp) return "";
   const pct = Math.max(0, Math.min(100, (c.hp / c.maxHp) * 100));
@@ -968,7 +1228,12 @@ function render() {
       return `<button type="button" class="pc-pill ${open.has(c.itemId) ? "on" : ""} ${entry ? "npc" : "party"} ${tgt ? "targeted" : ""}" data-id="${escapeHtml(c.itemId)}" title="${escapeHtml((c.realName || c.name) + alias)}"><span class="tgt" data-tgt="${escapeHtml(c.itemId)}" title="${tgt ? "Untarget" : "Target"}">◎</span><span class="pc-name">${escapeHtml(c.realName || c.name)}</span><span class="pc-init">${c.initiative}</span>${hpBar(c)}${headChips(c.itemId)}</button>`;
     })
     .join("")}</div>`;
-  app.innerHTML = tiles + targetBar() + roster.combatants.filter((c) => open.has(c.itemId)).map(card).join("");
+  app.innerHTML = tiles + targetBar() + resolveCard() + roster.combatants.filter((c) => open.has(c.itemId)).map(card).join("");
+  wireResolve();
+  if (scrollToResolve) {
+    scrollToResolve = false;
+    app.querySelector(".resolve")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
   freshKey = undefined;
 
   app.querySelectorAll<HTMLElement>(".tgt").forEach((t) =>

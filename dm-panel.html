@@ -137,6 +137,40 @@
       .tb-x:hover, .tb-clear:hover { opacity: 1; }
       .tb-clear { text-decoration: underline; font-size: 12px; }
       .tb-hint { opacity: .6; font-style: italic; }
+      .resolve { margin: 0 0 14px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(224,83,61,.55); background: linear-gradient(180deg, rgba(224,83,61,.08), rgba(0,0,0,.08)); }
+      .rs-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
+      .rs-title { font: 600 12px/1.2 Cinzel, serif; letter-spacing: .08em; text-transform: uppercase; color: #e8b9ae; }
+      .rs-total { opacity: .75; font-size: 13px; margin-right: auto; }
+      .rs-row { display: grid; grid-template-columns: minmax(110px, 160px) 1fr auto; gap: 6px 10px; align-items: center; padding: 7px 0; border-top: 1px solid rgba(255,255,255,.07); }
+      .rs-row.done { opacity: .85; }
+      .rs-who { font-weight: 600; }
+      .rs-who small { font-weight: 400; opacity: .65; margin-left: 3px; }
+      .rs-mid { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+      .rs-part { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; }
+      .rs-part .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+      .rs-m { font: inherit; font-size: 12px; padding: 2px 7px; background: none; border: 0; color: var(--ink); cursor: pointer; opacity: .6; }
+      .rs-m + .rs-m { border-left: 1px solid var(--line); }
+      .rs-m.on { background: var(--brass, #c9a25e); color: #1b140c; opacity: 1; font-weight: 700; }
+      .rs-m:disabled { cursor: default; }
+      .rs-btn { font: inherit; font-size: 13px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--brass-deep, #8a6a35); background: rgba(201,162,94,.15); color: var(--ink); cursor: pointer; }
+      .rs-btn:hover:not(:disabled) { background: rgba(201,162,94,.3); }
+      .rs-btn:disabled { opacity: .4; cursor: default; }
+      .rs-apply { border-color: #e0533d; background: rgba(224,83,61,.18); font-weight: 600; }
+      .rs-all { border-color: #e0533d; background: rgba(224,83,61,.28); font-weight: 600; }
+      .rs-roll { border-color: #5fb39b; background: rgba(95,179,155,.15); }
+      .rs-mini { font: inherit; font-size: 12px; background: none; border: 0; color: inherit; opacity: .7; text-decoration: underline; cursor: pointer; padding: 0 4px; }
+      .rs-mini:hover { opacity: 1; }
+      .rs-act { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
+      .rs-save { font-weight: 600; font-size: 13px; }
+      .rs-save.saved { color: #5fb39b; }
+      .rs-save.failed { color: #e07a62; }
+      .rs-save small { font-weight: 400; opacity: .7; }
+      .rs-ask { font-size: 13px; opacity: .8; }
+      .rs-missed { opacity: .6; font-style: italic; }
+      .rs-wait { opacity: .7; font-style: italic; }
+      .rs-done small { opacity: .65; }
+      .rs-err { grid-column: 1 / -1; color: #e07a62; font-size: 13px; }
+      .rs-note { grid-column: 1 / -1; font-size: 13px; color: #8fb6e8; }
       .apply-btn { margin-left: auto; align-self: center; background: transparent; color: var(--ink-soft); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; font: 600 11px/1 Cinzel, serif; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
       .apply-btn:hover { color: var(--ink); border-color: var(--brass-deep); }
       .apply-btn.armed { color: #f4ead6; background: #a33b2e; border-color: #a33b2e; }
@@ -332,6 +366,8 @@
         </div>
         <label class="check"><input id="dice-owlbear" type="checkbox" checked /> Roll visible dice in Owlbear (Discord posts once they land)</label>
         <label class="check"><input id="follow-selection" type="checkbox" checked /> Selecting tokens in Owlbear sets the targets</label>
+        <p class="hint"><button type="button" id="dc-test">Test DiceCloud write</button> applies 0 damage to each sheet-linked combatant (changes nothing) to check the account can write to their sheets.</p>
+        <p id="dc-test-result" class="hint"></p>
         <p id="token-status" class="hint"></p>
         <p id="relay-status" class="hint"></p>
         <p id="live-code" class="hint"></p>

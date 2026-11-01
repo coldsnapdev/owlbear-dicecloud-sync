@@ -21,6 +21,8 @@ export interface CreatureStats {
   ac?: number;
   /** Current temporary HP, if any (0 when none is up). Undefined only if the sheet has no tempHP attribute at all. */
   tempHP?: number;
+  /** Damage multipliers from the sheet: damage type -> 0 (immune), 0.5 (resistant) or 2 (vulnerable). */
+  multipliers?: Record<string, number>;
 }
 
 /**
@@ -67,7 +69,7 @@ export async function diceCloudLogin(
 async function fetchCreatureSheet(
   creatureId: string,
   token?: string
-): Promise<{ creature: any; props: any[] }> {
+): Promise<{ creature: any; props: any[]; variables: any }> {
   // Deliberately NOT sent as an `Authorization: Bearer <token>` header.
   // DiceCloud's REST framework (simple:rest) only attaches CORS headers to
   // a request when there's an explicit route registered for that exact
@@ -101,7 +103,28 @@ async function fetchCreatureSheet(
   return {
     creature: data?.creatures?.[0],
     props: data?.creatureProperties ?? [],
+    variables: Array.isArray(data?.creatureVariables) ? data.creatureVariables[0] : data?.creatureVariables,
   };
+}
+
+const DAMAGE_TYPES = ["acid", "bludgeoning", "cold", "fire", "force", "lightning", "necrotic", "piercing", "poison", "psychic", "radiant", "slashing", "thunder"];
+/** DiceCloud computes a variable per damage type with immunity / resistance / vulnerability flags. */
+function readMultipliers(variables: any): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const t of DAMAGE_TYPES) {
+    const v = variables?.[t];
+    if (!v) continue;
+    if (v.immunity) out[t] = 0;
+    else if (v.resistance && !v.vulnerability) out[t] = 0.5;
+    else if (v.vulnerability && !v.resistance) out[t] = 2;
+  }
+  return out;
+}
+
+/** The sheet's main HP and temp HP bars, as full property documents (needed to damage them). */
+export async function fetchHealthBars(creatureId: string, token: string, companion = false): Promise<{ hp?: any; temp?: any }> {
+  const { props } = await fetchCreatureSheet(creatureId, token);
+  return { hp: findAttribute(props, companion ? "companionHP" : "hitPoints"), temp: companion ? undefined : findAttribute(props, "tempHP") };
 }
 
 function findAttribute(props: any[], variableName: string): any | undefined {
@@ -132,7 +155,7 @@ export async function fetchCreatureStats(
   creatureId: string,
   token?: string
 ): Promise<CreatureStats> {
-  const { creature, props } = await fetchCreatureSheet(creatureId, token);
+  const { creature, props, variables } = await fetchCreatureSheet(creatureId, token);
 
   const hpBar = findAttribute(props, "hitPoints");
   const acStat = findAttribute(props, "armor");
@@ -144,6 +167,7 @@ export async function fetchCreatureStats(
     maxHP: numberOrUndefined(hpBar?.total),
     ac: numberOrUndefined(acStat?.value),
     tempHP: numberOrUndefined(tempHPBar?.value),
+    multipliers: readMultipliers(variables),
   };
 }
 

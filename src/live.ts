@@ -90,7 +90,30 @@ export interface RosterRequest {
   id: string;
   at: string;
 }
-export type LiveMessage = PanelCommand | StatusesMessage | TargetsMessage | RosterRequest;
+/** Change a token's HP: damage (positive) or healing (negative), or set exact values (undo). */
+export interface HpMessage {
+  kind: "hp";
+  id: string;
+  at: string;
+  itemId: string;
+  damage?: number;
+  set?: { hp: number; temp: number };
+  /** 0-point write to prove DiceCloud access, changes nothing */
+  test?: boolean;
+  /** skip DiceCloud and change Forge only (after a DiceCloud failure) */
+  forgeOnly?: boolean;
+}
+export type LiveMessage = PanelCommand | StatusesMessage | TargetsMessage | RosterRequest | HpMessage;
+export interface HpResult {
+  kind: "hp-result";
+  ref: string; // the HpMessage id
+  itemId: string;
+  ok: boolean;
+  via: "dicecloud" | "forge";
+  before?: { hp: number; temp: number; max?: number };
+  after?: { hp: number; temp: number; max?: number };
+  error?: string;
+}
 
 /** One combatant as Owlbear sees it right now (live link only: HP never goes to GitHub). */
 export interface LiveCombatant {
@@ -102,11 +125,16 @@ export interface LiveCombatant {
   hp?: number;
   maxHp?: number;
   tempHp?: number;
+  /** linked to a DiceCloud sheet (damage goes to the sheet) */
+  sheet?: boolean;
+  /** from the sheet: damage type -> 0 / 0.5 / 2 */
+  multipliers?: Record<string, number>;
 }
 /** Owlbear → panel, over the direct link. */
 export type OwlbearMessage =
   | { kind: "roster"; combatants: LiveCombatant[]; forgeInfo?: string }
-  | { kind: "selection"; ids: string[] };
+  | { kind: "selection"; ids: string[] }
+  | HpResult;
 
 // "loopback" tells Chrome/Opera up front that this goes to this computer (local network access)
 const loopback = { targetAddressSpace: "loopback" } as RequestInit;
