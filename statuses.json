@@ -1,16 +1,7 @@
 {
- "savedAt": "2026-11-01T04:44:42.140Z",
+ "savedAt": "2026-11-01T04:44:45.496Z",
  "tokens": {
   "7aa6256d-b943-47ca-87a1-aebff92c5855": [
-   {
-    "key": "charmed",
-    "label": "Charmed"
-   },
-   {
-    "key": "exhaustion",
-    "label": "Exhaustion",
-    "value": 1
-   },
    {
     "key": "restrained",
     "label": "Restrained"
