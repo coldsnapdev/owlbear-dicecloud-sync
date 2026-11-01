@@ -1,13 +1,10 @@
 // Writing HP to DiceCloud sheets.
 //
 // DiceCloud has no REST endpoint for changing a sheet; its own web app talks to the
-// server over Meteor's DDP protocol (a WebSocket). When a player types damage into
-// their HP bar, the sheet calls two methods: "actions.insertAction" with a
-// "damageProp" task aimed at that attribute, then "actions.runAction" to carry it
-// out (imports/client/ui/creature/character/characterSheetTabs/StatsTab.vue,
-// incrementChange). We make exactly the same calls, so it behaves as if the player
-// had typed it: their sheet's on-damage triggers run and their HP bar updates live.
-// The account needs edit (not just read) access to the sheet.
+// server over Meteor's DDP protocol (a WebSocket). We call the same method the sheet
+// calls when a player types damage into their HP bar (see damageAttribute), so their
+// on-damage triggers run and their HP bar updates live. The account needs edit (not
+// just read) access to the sheet.
 
 const DDP_URL = "wss://dicecloud.com/websocket";
 
@@ -85,9 +82,24 @@ class Ddp {
 
 const ddp = new Ddp();
 
-/** Change one attribute the way the sheet does: increment (damage; negative heals) or set. */
+/**
+ * Change one attribute the way the sheet does: increment (damage; negative heals) or set.
+ *
+ * The released DiceCloud (master branch, what dicecloud.com runs) has one method for this,
+ * "creatureProperties.damage" (app/imports/api/creature/creatureProperties/methods/
+ * damageProperty.js): it checks edit permission, runs the sheet's on-damage triggers and
+ * writes a log entry, exactly as typing into the HP bar does. DiceCloud's development
+ * branch replaces it with an "actions" engine; if the site ever moves to that, we fall
+ * back to it automatically.
+ */
 export async function damageAttribute(token: string, creatureId: string, prop: any, operation: "increment" | "set", value: number): Promise<void> {
   await ddp.login(token);
+  try {
+    await ddp.call("creatureProperties.damage", { _id: prop._id, operation, value });
+    return;
+  } catch (err) {
+    if (!/not found/i.test(err instanceof Error ? err.message : String(err))) throw err;
+  }
   const actionId = await ddp.call("actions.insertAction", {
     action: {
       creatureId,
