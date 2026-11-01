@@ -1,16 +1,4 @@
 {
- "savedAt": "2026-11-01T04:38:24.558Z",
- "tokens": {
-  "7aa6256d-b943-47ca-87a1-aebff92c5855": [
-   {
-    "key": "rotten",
-    "label": "Rotten",
-    "value": 1
-   },
-   {
-    "key": "incapacitated",
-    "label": "Incapacitated"
-   }
-  ]
- }
+ "savedAt": "2026-11-01T04:38:25.669Z",
+ "tokens": {}
 }
