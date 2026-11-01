@@ -184,6 +184,7 @@ function setTargets(ids: string[]) {
 const combatant = (id: string) => roster?.combatants.find((c) => c.itemId === id);
 function targetBar(): string {
   const chips = targets.map((id) => combatant(id)).filter((c): c is RosterEntry => !!c);
+  if (!chips.length) return "";
   return `<div class="target-bar"><span class="tb-label">Target${chips.length === 1 ? "" : "s"}</span>${
     chips.length
       ? chips.map((c) => `<span class="tb-chip">${escapeHtml(c.realName || c.name)}${c.ac !== undefined ? ` <small>AC ${c.ac}</small>` : ""}<button type="button" class="tb-x" data-id="${escapeHtml(c.itemId)}" title="Drop this target">×</button></span>`).join("") +
@@ -639,7 +640,6 @@ function doExtra(ctx: ActionCtx, i: number) {
 
 // --- Free dice box ------------------------------------------------------------------
 const diceInput = $<HTMLInputElement>("dice-input");
-const dicePrivate = $<HTMLInputElement>("dice-private");
 function rollBox() {
   const expr = diceInput.value.trim();
   const r = rollExpr(expr);
@@ -649,7 +649,7 @@ function rollBox() {
   }
   diceInput.classList.remove("bad");
   freshKey = "box";
-  const privateRoll = dicePrivate.checked || !isPublic();
+  const privateRoll = !isPublic();
   log(
     { who: "Dice", action: expr, text: `<span class="big">${r.total}</span> <span class="how">${working(r)}</span>` },
     { author: { name: "The DM rolls" }, description: `**${r.total}** (${expr}: ${working(r)})`, color: COLOUR.dice },
@@ -835,7 +835,7 @@ function statusEditor(itemId: string): string {
     .join("");
   return `
     <div class="statuses" data-id="${id}">
-      <div class="st-row">${chips || `<span class="st-none">No statuses</span>`}</div>
+      ${chips ? `<div class="st-row">${chips}</div>` : ""}
       <div class="st-add">
         <select class="st-pick" data-id="${id}">
           <option value="">Add a status…</option>
@@ -933,7 +933,7 @@ function renderLog() {
             `<div class="logline ${l.tone ?? ""} ${i === 0 ? "latest" : ""} ${i === 0 && freshKey ? "fresh" : ""}"><span class="who">${escapeHtml(l.who)} · ${escapeHtml(l.action)}${l.status ? ` <span class="st">${escapeHtml(l.status)}</span>` : ""}</span><span class="what">${l.text}</span></div>`,
         )
         .join("")
-    : `<p class="empty">Rolls appear here.</p>`;
+    : "";
 }
 
 // "Apply to token": two clicks (arm, then confirm) so a stray click can't reset HP.
@@ -1234,25 +1234,22 @@ function render() {
       const tag = !entry ? `<span class="tag">Party</span>` : manual ? `<span class="tag set">${escapeHtml(entry.name)}</span>` : "";
       return `
         <section class="combatant ${isOpen ? "open" : ""} ${entry ? "" : "party"} ${c.itemId === turnId ? "turn" : ""}" data-id="${escapeHtml(c.itemId)}">
-          <button type="button" class="head" aria-expanded="${isOpen}">
+          <div class="head" role="button" tabindex="0" aria-expanded="${isOpen}">
             <span class="init">${c.initiative}</span>
-            <span class="who"><span class="name">${escapeHtml(c.realName || c.name)}</span>${alias}</span>
+            <span class="who"><span class="name">${escapeHtml(c.realName || c.name)}<span class="sb-pick" title="Stat block">▾<select class="pick" aria-label="Stat block">
+                  <option value="">${auto ? `Auto: ${escapeHtml(auto.name)}` : "None (party member)"}</option>
+                  ${options.map((o) => `<option value="${escapeHtml(o.id)}" ${manual && entry?.id === o.id ? "selected" : ""}>${escapeHtml(o.name)}</option>`).join("")}
+                </select></span></span>${alias}</span>
             ${headChips(c.itemId)}
             ${tag}
             ${c.hp !== undefined ? `<span class="hpv" title="Hit points (live from Owlbear)"><span><small>HP</small>${c.hp}${c.maxHp !== undefined ? `/${c.maxHp}` : ""}${c.tempHp ? ` <small class="tmp">+${c.tempHp}</small>` : ""}</span></span>` : ""}
             <span class="ac" title="Armour class"><small>AC</small>${c.ac ?? "–"}</span>
             <span class="chev" aria-hidden="true"></span>
-          </button>
+          </div>
           ${isOpen ? `
             <div class="body">
-              <label class="picker">Stat block
-                <select class="pick">
-                  <option value="">${auto ? `Auto: ${escapeHtml(auto.name)}` : "None (party member)"}</option>
-                  ${options.map((o) => `<option value="${escapeHtml(o.id)}" ${manual && entry?.id === o.id ? "selected" : ""}>${escapeHtml(o.name)}</option>`).join("")}
-                </select>
-              </label>
               ${statusEditor(c.itemId)}
-              ${entry ? statBlock(entry, c) : `<p class="empty">No stat block. Party members are listed so you can see the turn order; pick an entry above if this token should have one.</p>`}
+              ${entry ? statBlock(entry, c) : ""}
             </div>` : ""}
         </section>`;
   };
@@ -1393,10 +1390,20 @@ function render() {
   );
   app.querySelectorAll<HTMLElement>(".combatant").forEach((row) => {
     const id = row.dataset.id!;
-    row.querySelector<HTMLButtonElement>(".head")!.addEventListener("click", () => {
+    const head = row.querySelector<HTMLElement>(".head")!;
+    const toggle = () => {
       if (open.has(id)) open.delete(id);
       else open.add(id);
+      if (id === autoOpened) autoOpened = undefined;
       render();
+    };
+    head.addEventListener("click", (e) => {
+      if ((e.target as HTMLElement).closest(".sb-pick")) return; // the stat block menu, not a toggle
+      toggle();
+    });
+    head.addEventListener("keydown", (e) => {
+      if ((e.target as HTMLElement).closest(".sb-pick")) return;
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
     });
     row.querySelector<HTMLSelectElement>(".pick")?.addEventListener("change", (e) => {
       const v = (e.target as HTMLSelectElement).value;

@@ -64,6 +64,10 @@
       }
       .head:hover { background: var(--panel-2); }
       .head:focus-visible { outline: 2px solid var(--brass); outline-offset: -2px; }
+      /* stat block menu: a small arrow by the name; the real (invisible) select sits over it */
+      .sb-pick { position: relative; display: inline-grid; place-items: center; width: 20px; height: 20px; margin-left: 6px; border-radius: 4px; font-size: 13px; color: var(--ink-faint); vertical-align: 2px; }
+      .sb-pick:hover { color: var(--brass); background: var(--panel-2); }
+      .sb-pick .pick { position: absolute; inset: 0; width: 100%; min-width: 0; height: 100%; opacity: 0; cursor: pointer; padding: 0; border: 0; }
       .init {
         flex: none; width: 40px; height: 40px; border-radius: 50%;
         display: grid; place-items: center;
@@ -352,8 +356,7 @@
             <input id="dice-input" type="text" placeholder="3d6+4" autocomplete="off" spellcheck="false" />
             <button id="dice-roll" type="button">Roll</button>
           </div>
-          <label class="check"><input id="dice-private" type="checkbox" /> Private</label>
-          <h2>Rolls</h2>
+          <h2 style="margin-top:16px">Rolls</h2>
           <div id="roll-log"></div>
         </aside>
       </div>
