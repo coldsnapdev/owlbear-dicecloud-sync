@@ -132,7 +132,7 @@ export interface LiveCombatant {
 }
 /** Owlbear → panel, over the direct link. */
 export type OwlbearMessage =
-  | { kind: "roster"; combatants: LiveCombatant[]; forgeInfo?: string }
+  | { kind: "roster"; combatants: LiveCombatant[]; forgeInfo?: string; turn?: string }
   | { kind: "selection"; ids: string[] }
   | HpResult;
 

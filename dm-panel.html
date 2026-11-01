@@ -115,6 +115,9 @@
       .pc-pill.party { border-top-color: #5fb39b; }
       .pc-pill:hover { border-color: var(--brass-deep); }
       .pc-pill.on { border-color: var(--brass); box-shadow: 0 0 0 1px var(--brass) inset; }
+      .pc-pill.turn { background: linear-gradient(180deg, rgba(240,200,105,.22), rgba(240,200,105,.06)); border-color: #f0c869; box-shadow: 0 0 0 1px #f0c869 inset, 0 0 14px rgba(240,200,105,.35); }
+      .pc-pill.turn::after { content: "Turn"; position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%); font: 700 9px/1 Cinzel, serif; letter-spacing: .12em; text-transform: uppercase; padding: 2px 5px; border-radius: 4px; background: #f0c869; color: #1b140c; }
+      .combatant.turn { border-color: #f0c869; box-shadow: 0 0 0 1px rgba(240,200,105,.5), 0 0 18px rgba(240,200,105,.15); }
       .pc-name { font-size: 14px; font-weight: 600; line-height: 1.15; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
       .pc-init { font: 600 18px/1 Cinzel, serif; color: var(--brass); }
       .pc-pill.party .pc-init { color: #5fb39b; }
@@ -373,7 +376,6 @@
         <p id="token-status" class="hint"></p>
         <p id="relay-status" class="hint"></p>
         <p id="live-code" class="hint"></p>
-        <details class="hint"><summary>Forge data (for Claude)</summary><pre id="forge-info" style="white-space:pre-wrap;font-size:11px;user-select:all">Open the panel from Owlbear to see this.</pre></details>
       </details>
     </div>
     <script type="module" src="/src/dm-panel.ts"></script>

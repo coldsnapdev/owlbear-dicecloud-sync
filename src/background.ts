@@ -373,20 +373,29 @@ async function pushRoster(force = false) {
     ac: c.ac, hp: c.currentHP, maxHp: c.maxHP, tempHp: c.tempHP,
     sheet: linked.has(c.itemId) || undefined, multipliers: sheetMultipliers.get(c.itemId),
   }));
-  const forgeInfo = await forgeDiagnostics(items).catch((err) => `couldn't read: ${err}`); // never let this block the roster
-  const fp = JSON.stringify([combatants, forgeInfo]);
+  const turn = await currentTurn().catch(() => undefined);
+  const fp = JSON.stringify([combatants, turn]);
   if (!force && fp === lastRosterSent) return;
   lastRosterSent = fp;
-  sendToPanel({ kind: "roster", combatants, forgeInfo });
+  sendToPanel({ kind: "roster", combatants, turn });
 }
-// What Forge stores beyond the stat keys (looking for where it keeps whose turn it is)
-async function forgeDiagnostics(items: Item[]): Promise<string> {
-  const short = (v: unknown) => JSON.stringify(v)?.slice(0, 80);
-  const scene = Object.entries(await OBR.scene.getMetadata()).filter(([k]) => /forge|battle/i.test(k)).map(([k, v]) => `scene ${k} = ${short(v)}`);
-  const room = Object.entries(await OBR.room.getMetadata()).filter(([k]) => /forge|battle/i.test(k)).map(([k, v]) => `room ${k} = ${short(v)}`);
-  const itemKeys = new Set<string>();
-  for (const i of items) for (const k of Object.keys(i.metadata)) if (/forge|battle/i.test(k) && !/\/Z0\d\d$/.test(k)) itemKeys.add(`${k} = ${short(i.metadata[k])}`);
-  return [...scene, ...room, ...[...itemKeys].slice(0, 25)].join("\n");
+// Whose turn it is: Forge keeps the active token's id in "com.battle-system.forge/currturn"
+// as { data: itemId } (seen in Owlbear's sync traffic when advancing turns).
+const TURN_KEY = "com.battle-system.forge/currturn";
+async function currentTurn(): Promise<string | undefined> {
+  const read = (m: Record<string, unknown>) => {
+    const v = m[TURN_KEY] as { data?: unknown } | string | undefined;
+    const id = typeof v === "string" ? v : v?.data;
+    return typeof id === "string" && id ? id : undefined;
+  };
+  return read(await OBR.scene.getMetadata()) ?? read(await OBR.room.getMetadata());
+}
+let turnListening = false;
+function listenTurn() {
+  if (turnListening) return;
+  turnListening = true;
+  OBR.scene.onMetadataChange(() => pushRoster().catch(() => {}));
+  OBR.room.onMetadataChange(() => pushRoster().catch(() => {}));
 }
 let selectionListening = false;
 function listenSelection() {
@@ -424,6 +433,7 @@ function startDirectLink() {
     panelWindow = (e.source as Window | null) ?? panelWindow;
     if (fresh) {
       listenSelection();
+      listenTurn();
       pushRoster(true).catch(() => {});
       reconcileTargets().catch(() => {});
     }

@@ -135,11 +135,23 @@ showLink();
 
 // --- Live from Owlbear: the roster (with HP) and the GM's selection ---------------------
 let liveRoster: LiveCombatant[] | undefined;
+let turnId: string | undefined; // Forge's active combatant
+let autoOpened: string | undefined;
+let scrollToTurn = false;
 let lastLiveFp = "";
 const asEntry = (c: LiveCombatant): RosterEntry => ({ itemId: c.itemId, name: c.name, realName: c.realName, initiative: c.initiative, ac: c.ac, hp: c.hp, maxHp: c.maxHp, tempHp: c.tempHp });
 onOwlbear((m) => {
   if (m.kind === "roster") {
-    $("forge-info").textContent = m.forgeInfo || "(nothing beyond the stat keys)";
+    // Forge's turn moved on: highlight the new combatant and open their card (closing the
+    // previous one only if it was opened for its turn, not by hand)
+    if (m.turn !== turnId) {
+      if (turnId && autoOpened === turnId) open.delete(turnId);
+      turnId = m.turn;
+      autoOpened = turnId && !open.has(turnId) ? turnId : undefined;
+      if (turnId) open.add(turnId);
+      scrollToTurn = !!turnId;
+      lastLiveFp = "";
+    }
     const fp = JSON.stringify(m.combatants);
     if (fp === lastLiveFp) return;
     lastLiveFp = fp;
@@ -1221,7 +1233,7 @@ function render() {
       const alias = c.realName && c.realName !== c.name ? `<span class="alias">shown as ${escapeHtml(c.name)}</span>` : "";
       const tag = !entry ? `<span class="tag">Party</span>` : manual ? `<span class="tag set">${escapeHtml(entry.name)}</span>` : "";
       return `
-        <section class="combatant ${isOpen ? "open" : ""} ${entry ? "" : "party"}" data-id="${escapeHtml(c.itemId)}">
+        <section class="combatant ${isOpen ? "open" : ""} ${entry ? "" : "party"} ${c.itemId === turnId ? "turn" : ""}" data-id="${escapeHtml(c.itemId)}">
           <button type="button" class="head" aria-expanded="${isOpen}">
             <span class="init">${c.initiative}</span>
             <span class="who"><span class="name">${escapeHtml(c.realName || c.name)}</span>${alias}</span>
@@ -1251,11 +1263,15 @@ function render() {
       const { entry } = entryFor(c);
       const alias = c.realName && c.realName !== c.name ? ` (shown as ${c.name})` : "";
       const tgt = targets.includes(c.itemId);
-      return `<button type="button" class="pc-pill ${open.has(c.itemId) ? "on" : ""} ${entry ? "npc" : "party"} ${tgt ? "targeted" : ""}" data-id="${escapeHtml(c.itemId)}" title="${escapeHtml((c.realName || c.name) + alias)}"><span class="tgt" data-tgt="${escapeHtml(c.itemId)}" title="${tgt ? "Untarget" : "Target"}">◎</span><span class="pc-name">${escapeHtml(c.realName || c.name)}</span><span class="pc-init">${c.initiative}</span>${hpBar(c)}${headChips(c.itemId)}</button>`;
+      return `<button type="button" class="pc-pill ${open.has(c.itemId) ? "on" : ""} ${entry ? "npc" : "party"} ${tgt ? "targeted" : ""} ${c.itemId === turnId ? "turn" : ""}" data-id="${escapeHtml(c.itemId)}" title="${escapeHtml((c.realName || c.name) + alias)}"><span class="tgt" data-tgt="${escapeHtml(c.itemId)}" title="${tgt ? "Untarget" : "Target"}">◎</span><span class="pc-name">${escapeHtml(c.realName || c.name)}</span><span class="pc-init">${c.initiative}</span>${hpBar(c)}${headChips(c.itemId)}</button>`;
     })
     .join("")}</div>`;
   app.innerHTML = tiles + targetBar() + resolveCard() + roster.combatants.filter((c) => open.has(c.itemId)).map(card).join("");
   wireResolve();
+  if (scrollToTurn && !scrollToResolve) {
+    scrollToTurn = false;
+    app.querySelector(".combatant.turn")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
   if (scrollToResolve) {
     scrollToResolve = false;
     app.querySelector(".resolve")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -1276,6 +1292,7 @@ function render() {
       const id = b.dataset.id!;
       if (open.has(id)) open.delete(id);
       else open.add(id);
+      if (id === autoOpened) autoOpened = undefined;
       render();
     }),
   );
