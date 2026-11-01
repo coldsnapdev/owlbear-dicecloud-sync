@@ -225,12 +225,16 @@ export interface LinkEnvelope {
   ref: string;
   msg?: LiveMessage | { kind: "ping"; id: string; at: string };
   fromOwlbear?: OwlbearMessage;
+  /** the Owlbear side's build (hello) */
+  build?: number;
 }
 
 // The Owlbear tab. Captured the moment the panel opens (the extension window that opened it
 // closes with its popover), then refreshed from Owlbear's own "hello" messages, which is
 // what re-links the panel after either side reloads.
 let owlbearTop: Window | undefined;
+/** Build number the Owlbear side last reported (0 = an old build that doesn't say). */
+export let owlbearBuild: number | undefined;
 const owlbearListeners: ((m: OwlbearMessage) => void)[] = [];
 /** Panel side: hear what Owlbear sends back (the live roster, the GM's selection). */
 export function onOwlbear(fn: (m: OwlbearMessage) => void) {
@@ -251,6 +255,7 @@ if (typeof window !== "undefined") {
     } catch {
       // ignore
     }
+    if (d.abelon === "hello") owlbearBuild = d.build ?? 0;
     if (d.abelon === "owlbear-msg" && d.fromOwlbear) owlbearListeners.forEach((fn) => fn(d.fromOwlbear!));
   });
 }

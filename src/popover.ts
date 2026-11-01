@@ -1,3 +1,4 @@
+import { BUILD, BUILD_NOTE } from "./build";
 import { LINK_STATUS_KEY, LIVE_STATUS_KEY, RELAY_STATUS_KEY } from "./live";
 import OBR, { type Item } from "@owlbear-rodeo/sdk";
 import {
@@ -70,7 +71,7 @@ app.innerHTML = `
     <p id="live-status" class="hint"></p>
   </section>
 
-  <p class="hint" style="opacity:0.5;">build 49 — resolve card: saves, apply damage, undo
+  <p class="hint" style="opacity:0.5;">build ${BUILD} — ${BUILD_NOTE}
 `;
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;

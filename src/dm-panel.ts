@@ -4,7 +4,8 @@
 // (see mailbox.ts), matches each combatant to a bestiary entry from the DM
 // manual, lets the DM roll from the stat block, and posts the results to
 // Discord with flavour text (and full spell text) for the table.
-import { liveCode, liveTopic, onOwlbear, owlbearWindow, publishLive, relayStatus, sendDirect, sendLocal, type HpResult, type LiveCombatant, type LiveMessage } from "./live";
+import { BUILD } from "./build";
+import { liveCode, liveTopic, onOwlbear, owlbearBuild, owlbearWindow, publishLive, relayStatus, sendDirect, sendLocal, type HpResult, type LiveCombatant, type LiveMessage } from "./live";
 import {
   loadAssignments,
   loadBestiary,
@@ -116,8 +117,13 @@ async function fastSend(msg: LiveMessage): Promise<boolean> {
 async function showLink() {
   const linked = await sendDirect({ kind: "ping", id: crypto.randomUUID(), at: new Date().toISOString() });
   const relay = linked ? undefined : await relayStatus();
+  const stale = linked && owlbearBuild !== undefined && owlbearBuild !== BUILD;
+  $("relay-status").classList.toggle("warn", stale);
+  const warnEl = $("stale-warning");
+  warnEl.hidden = !stale;
+  warnEl.textContent = stale ? `Owlbear is still running ${owlbearBuild ? `build ${owlbearBuild}` : "an older build"} of the extension (this panel is build ${BUILD}). Reload the Owlbear tab, then reopen this panel from the popover link.` : "";
   $("relay-status").textContent = linked
-    ? "Linked to Owlbear — rolls, statuses and stat blocks go straight to the table"
+    ? `Linked to Owlbear${owlbearBuild ? ` (build ${owlbearBuild})` : ""} — rolls, statuses and stat blocks go straight to the table`
     : relay?.owlbear
       ? "Linked to Owlbear through the local relay"
       : owlbearWindow()
@@ -159,6 +165,7 @@ const FOLLOW_KEY = "dm-panel/follow-selection";
 const followSelection = () => read(FOLLOW_KEY) !== "no";
 function setTargets(ids: string[]) {
   targets = [...new Set(ids)];
+  syncResolveTargets();
   fastSend({ kind: "targets", id: crypto.randomUUID(), at: new Date().toISOString(), ids: targets });
   render();
 }
@@ -199,7 +206,17 @@ const testOut: string[] = [];
 $("dc-test").addEventListener("click", async () => {
   const sheets = (liveRoster ?? []).filter((c) => c.sheet);
   testOut.length = 0;
-  $("dc-test-result").textContent = sheets.length ? "Testing…" : "No sheet-linked combatants on the list (open the panel from Owlbear, with the party in combat).";
+  $("dc-test-result").textContent = sheets.length
+    ? `Testing ${sheets.map((c) => c.realName || c.name).join(", ")}…`
+    : liveRoster
+      ? "None of the combatants on Forge's list is linked to a DiceCloud sheet."
+      : "No live roster: open this panel from the Owlbear extension's link (with the party on Forge's list).";
+  setTimeout(() => {
+    if (!testRefs.size) return;
+    for (const name of testRefs.values()) testOut.push(`${name}: no answer from Owlbear (reload the Owlbear tab; it may be running an older build)`);
+    testRefs.clear();
+    $("dc-test-result").textContent = testOut.join(" · ");
+  }, 15000);
   for (const c of sheets) {
     const ref = crypto.randomUUID();
     testRefs.set(ref, c.realName || c.name);
@@ -975,7 +992,7 @@ function defaultMult(c: RosterEntry, type: string): number {
 }
 function startResolve(ctx: ActionCtx, parts: { type: string; amount: number }[], opts: { fromAttack?: boolean; dc?: string; half?: boolean }) {
   const list = targets.map((id) => combatant(id)).filter((c): c is RosterEntry => !!c);
-  if (!list.length || !parts.length) return;
+  if (!parts.length) return;
   const healing = parts.every((p) => p.type === "healing" || p.type === "hit points");
   const hits = opts.fromAttack ? lastHits.get(ctx.key) : undefined;
   const dcm = opts.dc?.match(/DC (\d+) (\w+)/);
@@ -988,13 +1005,22 @@ function startResolve(ctx: ActionCtx, parts: { type: string; amount: number }[],
     healing,
     dc: dcm && !healing ? { dc: Number(dcm[1]), ability: dcm[2] } : undefined,
     half: !!opts.half,
-    targets: list.map((c) => ({
-      itemId: c.itemId,
-      missed: hits?.get(c.itemId) === false || undefined,
-      mults: parts.map((p) => (healing ? 1 : defaultMult(c, p.type))),
-    })),
+    targets: list.map((c) => newRow(c, parts, healing, hits)),
   };
   scrollToResolve = true;
+}
+function newRow(c: RosterEntry, parts: { type: string }[], healing: boolean, hits?: Map<string, boolean | undefined>): ResolveTarget {
+  return { itemId: c.itemId, missed: hits?.get(c.itemId) === false || undefined, mults: parts.map((p) => (healing ? 1 : defaultMult(c, p.type))) };
+}
+/** Targets picked (or dropped) after the roll join (or leave) the open damage card. */
+function syncResolveTargets() {
+  const r = resolve;
+  if (!r || r.posted) return;
+  r.targets = r.targets.filter((t) => t.state || targets.includes(t.itemId));
+  for (const id of targets) {
+    const c = combatant(id);
+    if (c && !r.targets.some((t) => t.itemId === id)) r.targets.push(newRow(c, r.parts, r.healing));
+  }
 }
 function amountFor(r: Resolve, t: ResolveTarget): number {
   if (t.missed) return 0;
@@ -1138,7 +1164,7 @@ function resolveCard(): string {
     <div class="rs-head"><span class="rs-title">${r.healing ? "Healing" : "Damage"} · ${e(r.dmWho)} · ${e(r.action)}</span>${r.dc ? `<span class="dc">DC ${r.dc.dc} ${e(r.dc.ability)}${r.half ? " · half on save" : ""}</span>` : ""}
     <span class="rs-total">${r.parts.map((p) => `${p.amount} ${e(p.type)}`).join(" + ")}</span>
     ${open ? `<button type="button" class="rs-btn rs-all" data-rs="all">Apply all</button>` : ""}<button type="button" class="rs-mini" data-rs="close" title="Close without applying anything else">Close</button></div>
-    ${rows.join("")}
+    ${rows.join("") || `<div class="rs-row"><div class="rs-who" style="grid-column:1/-1;font-weight:400;opacity:.75">No targets yet: select tokens in Owlbear or tap ◎ on a tile, and they'll appear here.</div></div>`}
   </div>`;
 }
 function wireResolve() {

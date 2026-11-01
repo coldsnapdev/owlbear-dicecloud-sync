@@ -137,6 +137,7 @@
       .tb-x:hover, .tb-clear:hover { opacity: 1; }
       .tb-clear { text-decoration: underline; font-size: 12px; }
       .tb-hint { opacity: .6; font-style: italic; }
+      .stale-warning { margin: 0 0 12px; padding: 8px 12px; border-radius: 8px; border: 1px solid #e0533d; background: rgba(224,83,61,.15); color: #f2c4b8; font-size: 14px; }
       .resolve { margin: 0 0 14px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(224,83,61,.55); background: linear-gradient(180deg, rgba(224,83,61,.08), rgba(0,0,0,.08)); }
       .rs-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
       .rs-title { font: 600 12px/1.2 Cinzel, serif; letter-spacing: .08em; text-transform: uppercase; color: #e8b9ae; }
@@ -340,6 +341,7 @@
         </label>
       </header>
       <div class="layout">
+        <p id="stale-warning" class="stale-warning" hidden></p>
         <main id="app"></main>
         <aside>
           <h2>Dice</h2>
