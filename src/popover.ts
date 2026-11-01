@@ -27,51 +27,40 @@ import {
 const app = document.getElementById("app")!;
 
 app.innerHTML = `
-  <section class="block">
-    <h2>DiceCloud reader account</h2>
-    <p class="hint">
-      A DiceCloud account that's been added as a <strong>Reader</strong> on
-      every party sheet. Kept only in this browser.
-    </p>
-    <input id="username" type="text" placeholder="Username or email" autocomplete="off" />
-    <input id="password" type="password" placeholder="Password" autocomplete="off" />
-    <div class="row">
-      <button id="save-creds">Save &amp; test login</button>
-      <span id="creds-status" class="status"></span>
-    </div>
-  </section>
+  <header class="top">
+    <h1>DM Panel Set-up</h1>
+    <span class="build">build ${BUILD}</span>
+  </header>
+  <div class="open-row">
+    <button id="dm-panel-link" type="button">Open DM panel ↗</button>
+    <span id="relay-status" class="status"></span>
+  </div>
 
   <section class="block">
-    <h2>Party mapping</h2>
-    <p class="hint">
-      For each Forge unit, paste the DiceCloud character sheet URL to sync
-      it from. A saved link is remembered by token name, so it reattaches
-      automatically next time that name shows up in any scene.
-    </p>
+    <h2>Party</h2>
+    <p class="hint">Paste each token's DiceCloud sheet link.</p>
     <div id="mapping-list">Loading tokens…</div>
     <div id="ignored-list"></div>
-    <div id="debug-list"></div>
   </section>
 
-  <section class="block">
-    <h2>DM panel</h2>
-    <p class="hint">
-      Whenever Forge's combat list changes, this browser saves the roster to
-      GitHub; the DM panel fetches it with "Update Roster". Needs a GitHub
-      token (fine-grained, owlbear-dicecloud-sync repo, Contents: read and
-      write). Kept only in this browser — only the GM needs one.
-    </p>
-    <input id="gh-token" type="password" placeholder="GitHub token" autocomplete="off" />
-    <div class="row">
-      <button id="save-gh-token">Save token</button>
-      <span id="gh-status" class="status"></span>
+  <details class="settings">
+    <summary>Settings</summary>
+    <div class="set">
+      <h3>DiceCloud login</h3>
+      <input id="username" type="text" placeholder="Username or email" autocomplete="off" />
+      <input id="password" type="password" placeholder="Password" autocomplete="off" />
+      <div class="row"><button id="save-creds">Save &amp; test</button><span id="creds-status" class="status"></span></div>
     </div>
-    <p class="hint" style="margin-top:8px;"><a id="dm-panel-link" href="./dm-panel.html" target="_blank">Open DM panel ↗</a> — open it from here to link it to this Owlbear tab (instant rolls).</p>
-    <p id="relay-status" class="hint"></p>
-    <p id="live-status" class="hint"></p>
-  </section>
+    <div class="set">
+      <h3>GitHub token</h3>
+      <input id="gh-token" type="password" placeholder="GitHub token" autocomplete="off" />
+      <div class="row"><button id="save-gh-token">Save</button><span id="gh-status" class="status"></span></div>
+      <p id="live-status" class="hint"></p>
+    </div>
+    <div id="debug-list"></div>
+  </details>
 
-  <p class="hint" style="opacity:0.5;">build ${BUILD} — ${BUILD_NOTE}
+  <p class="hint foot">build ${BUILD} — ${BUILD_NOTE}</p>
 `;
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;
@@ -87,8 +76,7 @@ const ghStatus = document.getElementById("gh-status")!;
 const liveEl = document.getElementById("live-status")!;
 // opened with window.open (not a plain link, which browsers now open without a back-reference)
 // so the panel keeps a handle on this Owlbear tab and can message it directly
-document.getElementById("dm-panel-link")!.addEventListener("click", (e) => {
-  e.preventDefault();
+document.getElementById("dm-panel-link")!.addEventListener("click", () => {
   window.open(new URL("dm-panel.html", location.href).href, "abelon-dm-panel");
 });
 const relayEl = document.getElementById("relay-status")!;
@@ -98,8 +86,8 @@ function renderRelay() {
   let link: { at?: number } = {};
   try { link = JSON.parse(localStorage.getItem(LINK_STATUS_KEY) || "{}"); } catch { /* none yet */ }
   relayEl.textContent = link.at && Date.now() - link.at < 15000
-    ? "DM panel: linked — panel commands arrive instantly"
-    : st.state === "connected" ? "DM panel: linked through the local relay" : "";
+    ? "✓ Linked"
+    : st.state === "connected" ? "✓ Linked (relay)" : "Not linked";
 }
 renderRelay();
 setInterval(renderRelay, 2000);
@@ -109,8 +97,8 @@ function renderLive() {
   liveEl.textContent = !st.code
     ? ""
     : st.state === "connected"
-      ? `Live rolls: connected · channel ${st.code} (should match the code in the DM panel)`
-      : `Live rolls: ${st.state ?? "connecting"}… · channel ${st.code} (rolls still arrive via GitHub meanwhile)`;
+      ? `Backup roll channel ${st.code}: connected`
+      : `Backup roll channel ${st.code}: ${st.state ?? "connecting"}…`;
 }
 renderLive();
 setInterval(renderLive, 2000);
@@ -119,14 +107,14 @@ function renderMailboxStatus() {
   const token = getGitHubToken();
   const status = getMailboxStatus();
   if (!token) {
-    ghStatus.textContent = "No token — roster isn't being saved.";
+    ghStatus.textContent = "No token saved";
     ghStatus.className = "status error";
   } else if (status) {
     const time = new Date(status.at).toLocaleTimeString();
-    ghStatus.textContent = status.ok ? `✓ ${status.message} at ${time}` : `Last save failed at ${time}: ${status.message}`;
+    ghStatus.textContent = status.ok ? `✓ Saved ${time}` : `Save failed ${time}: ${status.message}`;
     ghStatus.className = status.ok ? "status ok" : "status error";
   } else {
-    ghStatus.textContent = "Token saved — waiting for the combat list to change.";
+    ghStatus.textContent = "✓ Token saved";
     ghStatus.className = "status";
   }
 }
@@ -163,7 +151,7 @@ document.getElementById("save-creds")!.addEventListener("click", async () => {
   try {
     cachedSession = await diceCloudLogin(usernameOrEmail, password);
     setStoredCredentials({ usernameOrEmail, password });
-    credsStatus.textContent = "✓ Logged in and saved.";
+    credsStatus.textContent = "✓ Saved";
     credsStatus.className = "status ok";
   } catch (err) {
     console.error("[dicecloud-sync] credentials test failed:", err);
@@ -234,12 +222,12 @@ async function renderMappings() {
   renderDebugList(items, allForgeItems);
 
   if (allForgeItems.length === 0) {
-    mappingList.innerHTML = `<p class="hint">No Forge units found in this scene yet — see "Scene items" below to check why.</p>`;
+    mappingList.innerHTML = `<p class="hint">No Forge units in this scene.</p>`;
     return;
   }
 
   if (visibleForgeItems.length === 0) {
-    mappingList.innerHTML = `<p class="hint">All ${allForgeItems.length} Forge unit(s) in this scene are hidden — see below.</p>`;
+    mappingList.innerHTML = `<p class="hint">All Forge units here are skipped.</p>`;
     return;
   }
 
@@ -256,22 +244,16 @@ async function renderMappings() {
       <div class="mapping-header">
         <strong>${escapeHtml(item.name)}</strong>
         <span class="hint">HP ${forgeStats.currentHP ?? "–"}/${forgeStats.maxHP ?? "–"}${
-      forgeStats.tempHP && forgeStats.tempHP !== "0" ? ` (+${forgeStats.tempHP} temp)` : ""
+      forgeStats.tempHP && forgeStats.tempHP !== "0" ? ` +${forgeStats.tempHP}` : ""
     } · AC ${forgeStats.ac ?? "–"}</span>
       </div>
-      <input
-        type="text"
-        class="creature-url"
-        placeholder="https://dicecloud.com/character/…"
-        value="${escapeHtml(existing?.creatureId ?? "")}"
-      />
-      <label class="companion-toggle hint">
-        <input type="checkbox" class="companion-checkbox" ${existing?.companion ? "checked" : ""} />
-        This is a companion (syncs Companion HP/AC from that sheet, not the character's own)
-      </label>
       <div class="row">
+        <input type="text" class="creature-url" placeholder="DiceCloud sheet link" value="${escapeHtml(existing?.creatureId ?? "")}" />
         <button class="save-mapping">Save</button>
-        <button class="ignore-item secondary" type="button">Not connecting this</button>
+        <button class="ignore-item secondary" type="button" title="Not a party member: hide this token here">Skip</button>
+      </div>
+      <div class="row">
+        <label class="companion-toggle hint"><input type="checkbox" class="companion-checkbox" ${existing?.companion ? "checked" : ""} /> Companion</label>
         <span class="status"></span>
       </div>
     `;
@@ -312,8 +294,7 @@ async function renderMappings() {
           ? await fetchCompanionStats(creatureId, session?.token)
           : await fetchCreatureStats(creatureId, session?.token);
         await upsertMapping({ itemId: item.id, itemName: item.name, creatureId, companion });
-        const tempHPNote = stats.tempHP ? `, temp HP ${stats.tempHP}` : "";
-        status.textContent = `✓ Found ${stats.name ?? (companion ? "companion" : "character")} — HP ${stats.currentHP}/${stats.maxHP}, AC ${stats.ac}${tempHPNote}`;
+        status.textContent = `✓ ${stats.name ?? (companion ? "Companion" : "Linked")}`;
         status.className = "status ok";
       } catch (err) {
         console.error("[dicecloud-sync] fetch creature stats failed:", err);
@@ -344,7 +325,7 @@ function renderIgnoredList(ignoredLinks: CharacterLink[]) {
       (link) => `
         <div class="hidden-row" data-name="${escapeHtml(link.itemName)}">
           <span>${escapeHtml(link.itemName)}</span>
-          <button class="unignore-item secondary" type="button">Show again</button>
+          <button class="unignore-item secondary" type="button">Restore</button>
         </div>
       `
     )
@@ -352,7 +333,7 @@ function renderIgnoredList(ignoredLinks: CharacterLink[]) {
 
   ignoredList.innerHTML = `
     <details class="hidden-tokens">
-      <summary>${ignoredLinks.length} hidden token name(s) (e.g. NPCs)</summary>
+      <summary>Skipped tokens (${ignoredLinks.length})</summary>
       ${rows}
     </details>
   `;
@@ -381,15 +362,15 @@ function renderDebugList(items: Item[], forgeItems: Item[]) {
       const stats = tracked ? readForgeStats(item.metadata) : undefined;
       const tempNote = stats?.tempHP && stats.tempHP !== "0" ? ` (+${stats.tempHP} temp)` : "";
       const detail = tracked
-        ? `Forge-tracked — HP ${stats?.currentHP ?? "–"}/${stats?.maxHP ?? "–"}${tempNote} · AC ${stats?.ac ?? "–"}`
-        : "not Forge-tracked yet";
+        ? `HP ${stats?.currentHP ?? "–"}/${stats?.maxHP ?? "–"}${tempNote} · AC ${stats?.ac ?? "–"}`
+        : "not in Forge";
       return `<div class="hidden-row"><span>${escapeHtml(item.name) || "(unnamed)"}</span><span class="hint">${detail}</span></div>`;
     })
     .join("");
 
   debugList.innerHTML = `
     <details class="hidden-tokens">
-      <summary>Scene items (${items.length}) — debug</summary>
+      <summary>Scene items (${items.length})</summary>
       ${rows || `<p class="hint">No items in this scene.</p>`}
     </details>
   `;
@@ -402,6 +383,12 @@ function escapeHtml(s: string): string {
 }
 
 OBR.onReady(async () => {
+  // DM tools only: players get a one-line note in a small popover, and none of the set-up
+  if ((await OBR.player.getRole()) !== "GM") {
+    app.innerHTML = `<p class="hint" style="margin:0">Abelon DM tools — nothing to set up here.</p>`;
+    await OBR.action.setHeight(48);
+    return;
+  }
   await initCredentialsForm();
   await renderMappings();
   // Covers both "no scene yet, one opens later" and "scene changes" — the

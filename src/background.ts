@@ -67,7 +67,7 @@ async function checkRoster() {
 const STATUS_POLL_MS = 2000; // also how quickly panel rolls reach the table (unchanged polls cost nothing)
 const MARKER_KEY = "com.abelon.status/marker";
 // Bump when the label look changes, so labels already on tokens get redrawn.
-const LABEL_STYLE = 6;
+const LABEL_STYLE = 7;
 let statusEtag: string | undefined;
 let statusFile: StatusFile | undefined;
 let statusBusy = false;
@@ -90,7 +90,7 @@ async function drawStatuses() {
   const dpi = await OBR.scene.grid.getDpi();
   const fontSize = Math.round(dpi * 0.08);
   const padding = Math.round(fontSize * 0.35);
-  const row = fontSize * 1.25 + padding * 2 + Math.round(dpi * 0.02);
+  const row = fontSize * 1.25 + padding * 2 + Math.round(dpi * 0.035); // a couple of px more air between stacked chips
 
   const wanted: { parent: string; sig: string; build: () => Promise<Item> }[] = [];
   for (const [parentId, list] of Object.entries(statusFile.tokens)) {
