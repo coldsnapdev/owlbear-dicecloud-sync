@@ -1,6 +1,12 @@
 {
- "savedAt": "2026-11-02T12:43:27.648Z",
+ "savedAt": "2026-11-02T12:43:56.627Z",
  "combatants": [
+  {
+   "itemId": "2553dd87-23cd-4ce4-96ee-da01e476386e",
+   "name": "Jenok",
+   "initiative": 19,
+   "ac": 15
+  },
   {
    "itemId": "cce20b91-c811-47b6-9a92-29090c560e8a",
    "name": "Male Gnome 1",
@@ -14,6 +20,12 @@
    "realName": "Aldwyn",
    "initiative": 18,
    "ac": 11
+  },
+  {
+   "itemId": "916fb815-16b7-4441-a6ed-bcaa4c59b42d",
+   "name": "Danzel",
+   "initiative": 12,
+   "ac": 16
   },
   {
    "itemId": "16d7f9d8-cc07-49ce-a22e-9f00885df1e1",
@@ -30,33 +42,21 @@
    "ac": 11
   },
   {
-   "itemId": "916fb815-16b7-4441-a6ed-bcaa4c59b42d",
-   "name": "Danzel",
-   "initiative": 0,
+   "itemId": "fa745153-e10b-4dbd-9b1a-81ee65ec6cf0",
+   "name": "An",
+   "initiative": 8,
    "ac": 16
   },
   {
    "itemId": "47925504-1262-4a90-b350-b7192ddaca68",
    "name": "Wren",
-   "initiative": 0,
+   "initiative": 5,
    "ac": 11
-  },
-  {
-   "itemId": "2553dd87-23cd-4ce4-96ee-da01e476386e",
-   "name": "Jenok",
-   "initiative": 0,
-   "ac": 15
   },
   {
    "itemId": "0443252a-d3bd-4738-a612-1d0d557ba393",
    "name": "Tenok",
-   "initiative": 0,
-   "ac": 16
-  },
-  {
-   "itemId": "fa745153-e10b-4dbd-9b1a-81ee65ec6cf0",
-   "name": "An",
-   "initiative": 0,
+   "initiative": 5,
    "ac": 16
   }
  ]
