@@ -1344,13 +1344,14 @@ function render() {
       const { entry, manual } = entryFor(c);
       const auto = autoMatch(c);
       const isOpen = open.has(c.itemId);
-      const alias = c.realName && c.realName !== c.name ? `<span class="alias">shown as ${escapeHtml(c.name)}</span>` : "";
+      // the name the players know is the heading; the real one sits under it for you
+      const alias = c.realName && c.realName !== c.name ? `<span class="alias real-under"><small>Real name</small> ${escapeHtml(c.realName)}</span>` : "";
       const tag = !entry ? `<span class="tag">Party</span>` : manual ? `<span class="tag set">${escapeHtml(entry.name)}</span>` : "";
       return `
         <section class="combatant ${isOpen ? "open" : ""} ${entry ? "" : "party"} ${c.itemId === turnId ? "turn" : ""}" data-id="${escapeHtml(c.itemId)}">
           <div class="head" role="button" tabindex="0" aria-expanded="${isOpen}">
             <span class="init">${c.initiative}</span>
-            <span class="who"><span class="name">${escapeHtml(c.realName || c.name)}<span class="sb-pick" title="Stat block">▾<select class="pick" aria-label="Stat block">
+            <span class="who"><span class="name">${escapeHtml(c.name)}<span class="sb-pick" title="Stat block">▾<select class="pick" aria-label="Stat block">
                   <option value="">${auto ? `Auto: ${escapeHtml(auto.name)}` : "None (party member)"}</option>
                   ${options.map((o) => `<option value="${escapeHtml(o.id)}" ${manual && entry?.id === o.id ? "selected" : ""}>${escapeHtml(o.name)}</option>`).join("")}
                 </select></span></span>${alias}</span>

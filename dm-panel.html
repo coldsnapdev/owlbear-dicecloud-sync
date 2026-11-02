@@ -79,6 +79,8 @@
       .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
       .name { font-size: 19px; font-weight: 600; line-height: 1.2; }
       .alias { font-size: 13px; color: var(--ink-faint); font-style: italic; }
+      .alias.real-under { display: block; margin-top: 2px; font: italic 600 15px/1.2 "Crimson Pro", serif; color: #e2c27f; }
+      .alias.real-under small { font: 600 9px/1 Cinzel, serif; font-style: normal; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); margin-right: 4px; }
       .tag { font: 500 10px/1 Cinzel, serif; letter-spacing: .1em; text-transform: uppercase; padding: 5px 8px; border-radius: 999px; border: 1px solid var(--verdigris); color: var(--verdigris); }
       .tag.set { border-color: var(--copper); color: var(--copper); }
       .ac {
@@ -167,7 +169,7 @@
       .rs-row { display: grid; grid-template-columns: minmax(110px, 160px) 1fr auto; gap: 6px 10px; align-items: center; padding: 7px 0; border-top: 1px solid rgba(255,255,255,.07); }
       .rs-row.done { opacity: .85; }
       .rs-who { font-weight: 600; }
-      .rs-who .real-name { font-style: italic; }
+      .rs-who .real-name { font-style: italic; color: #e2c27f; opacity: 1; }
       .rs-who small { font-weight: 400; opacity: .65; margin-left: 3px; }
       .rs-mid { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
       .rs-part { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; }

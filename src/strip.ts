@@ -35,10 +35,8 @@ function chip(u: Unit, roundLabel?: string): string {
   const pct = u.maxHp ? Math.max(0, Math.min(100, ((u.hp ?? 0) / u.maxHp) * 100)) : undefined;
   const tone = pct === undefined ? "" : pct <= 25 ? "low" : pct <= 50 ? "mid" : "";
   const sts = gm ? gmStatuses()[u.id] ?? [] : state.statuses?.[u.id] ?? [];
-  // the name the players know is the one on the shield, for the GM too; the GM also gets
-  // the real name in a small tag beneath, so it can't slip out by accident
+  // the name the players know, for the GM too, so a real name can't slip out by accident
   const name = u.name;
-  const real = gm && u.realName && u.realName !== u.name ? `<div class="real" title="Real name (only you see this)">${esc(u.realName)}</div>` : "";
   const init = `<span class="init ${u.init === undefined ? "none" : ""}">${u.init ?? "–"}</span>`;
   const bar = pct !== undefined ? `<div class="hp ${tone}"><i style="width:${pct.toFixed(0)}%"></i>${u.tempHp ? "<b></b>" : ""}</div>` : "";
   const stats = showNums
@@ -56,7 +54,7 @@ function chip(u: Unit, roundLabel?: string): string {
       <div class="name">${esc(fitName(name))}</div>
       ${stats}
     </div></div>
-    ${real}${label}${below}`;
+    ${label}${below}`;
 }
 
 // slot geometry: shields are 96 wide; the active one is scaled up
