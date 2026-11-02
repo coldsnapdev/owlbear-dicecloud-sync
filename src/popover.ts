@@ -104,7 +104,7 @@ updateBtn.addEventListener("click", async () => {
   updateBtn.textContent = "Updating…";
   await refreshPages();
   await OBR.broadcast.sendMessage(REFRESH_CHANNEL, { at: Date.now() }, { destination: "ALL" });
-  setTimeout(() => location.reload(), 300);
+  setTimeout(() => location.replace(`index.html${location.search.replace(/([?&])v=\d+&?/, "$1").replace(/[?&]$/, "")}`), 300);
 });
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;
@@ -121,7 +121,7 @@ const liveEl = document.getElementById("live-status")!;
 // opened with window.open (not a plain link, which browsers now open without a back-reference)
 // so the panel keeps a handle on this Owlbear tab and can message it directly
 document.getElementById("dm-panel-link")!.addEventListener("click", () => {
-  window.open(new URL("dm-panel.html", location.href).href, "abelon-dm-panel");
+  window.open(new URL(`dm-panel.html?v=${BUILD}`, location.href).href, "abelon-dm-panel");
 });
 const relayEl = document.getElementById("relay-status")!;
 function renderRelay() {

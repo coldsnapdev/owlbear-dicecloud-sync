@@ -5,7 +5,7 @@
 // manual, lets the DM roll from the stat block, and posts the results to
 // Discord with flavour text (and full spell text) for the table.
 import { BUILD } from "./build";
-import { refreshPages } from "./refresh";
+import { liveBuild } from "./refresh";
 import { liveCode, liveTopic, onOwlbear, owlbearBuild, owlbearWindow, publishLive, relayStatus, sendDirect, sendLocal, type HpResult, type LiveCombatant, type LiveMessage } from "./live";
 import {
   loadAssignments,
@@ -145,7 +145,7 @@ const asEntry = (c: LiveCombatant): RosterEntry => ({ itemId: c.itemId, name: c.
 onOwlbear((m) => {
   if (m.kind === "reload") {
     // the extension was just updated: fetch this page fresh and reload (the link comes back by itself)
-    refreshPages().finally(() => location.reload());
+    liveBuild().then((v) => location.replace(`dm-panel.html?v=${v ?? Date.now()}`));
     return;
   }
   if (m.kind === "roster") {

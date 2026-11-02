@@ -20,8 +20,8 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        popover: resolve(__dirname, "index.html"),
-        background: resolve(__dirname, "background.html"),
+        popover: resolve(__dirname, "pop.html"),
+        background: resolve(__dirname, "bg.html"),
         dmPanel: resolve(__dirname, "dm-panel.html"),
         dice: resolve(__dirname, "dice.html"),
         strip: resolve(__dirname, "strip.html"),

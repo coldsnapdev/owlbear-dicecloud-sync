@@ -545,7 +545,7 @@ async function showNextRoll() {
     const height = Math.round(width * 0.62);
     await OBR.popover.open({
       id: DICE_POPOVER,
-      url: `${new URL("dice.html", location.href).href}#${encodeURIComponent(JSON.stringify(roll))}`,
+      url: `${new URL(`dice.html?v=${BUILD}`, location.href).href}#${encodeURIComponent(JSON.stringify(roll))}`,
       width,
       height,
       anchorReference: "POSITION",
@@ -683,7 +683,8 @@ function listenForRefresh() {
     } catch {
       // no scene open
     }
-    setTimeout(() => location.reload(), 200);
+    // back through the loader, which picks up the newest build at a fresh address
+    setTimeout(() => location.replace(`background.html${location.search.replace(/([?&])v=\d+&?/, "$1").replace(/[?&]$/, "")}`), 200);
   });
 }
 

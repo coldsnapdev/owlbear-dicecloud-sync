@@ -7,6 +7,7 @@ import OBR, { buildShape, type Item } from "@owlbear-rodeo/sdk";
 import { addToCombat, applyStatBlock, COMBAT_KEY, partyIds, getState, inCombat, removeFromCombat, type CombatState, type PublicStatus } from "./combat";
 import { FORGE_KEYS } from "./forge";
 import { GM_STATUS_KEY } from "./stripKeys";
+import { BUILD } from "./build";
 import { getGitHubToken, loadAssignments, loadBestiary, type Assignments, type BestiaryEntry } from "./mailbox";
 
 const STRIP_ID = "com.abelon.combat/strip";
@@ -32,7 +33,7 @@ async function updateStrip() {
   if (!stripOpen || Math.abs(vw - openedAtVw) > 4) {
     await OBR.popover.open({
       id: STRIP_ID,
-      url: new URL("strip.html", location.href).href,
+      url: new URL(`strip.html?v=${BUILD}`, location.href).href,
       width: w,
       height: STRIP_H,
       anchorReference: "POSITION",

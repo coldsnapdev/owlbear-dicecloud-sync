@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<style>html,body{margin:0;background:transparent;color-scheme:normal}</style>
+<script>
+  // Loader: Owlbear always opens this address, which browsers may cache. It asks which build
+  // is live right now and opens that build's page at an address no cache can have kept
+  // (keeping Owlbear's own parameters, which the extension needs).
+  (async () => {
+    let v = Date.now();
+    try {
+      const r = await fetch("version.json?t=" + Date.now(), { cache: "no-store" });
+      v = (await r.json()).build || v;
+    } catch (e) {}
+    const q = new URLSearchParams(location.search);
+    q.set("v", String(v));
+    location.replace("pop.html?" + q.toString() + location.hash);
+  })();
+</script>
+</head>
+<body></body>
+</html>
