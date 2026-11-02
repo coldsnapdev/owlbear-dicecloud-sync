@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-11-02T23:04:42.542Z",
+ "savedAt": "2026-11-02T23:04:56.862Z",
  "tokens": {
   "8367561a-6dcc-4e83-a0ca-f90c3a66c604": [
    {
@@ -17,6 +17,12 @@
    {
     "key": "custom:bardic inspiration",
     "label": "Bardic Inspiration"
+   }
+  ],
+  "4e4e6e1e-00c8-4171-81f2-05103924cd1b": [
+   {
+    "key": "custom:dead",
+    "label": "Dead"
    }
   ]
  }
