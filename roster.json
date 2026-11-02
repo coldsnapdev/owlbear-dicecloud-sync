@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-11-02T22:37:57.675Z",
+ "savedAt": "2026-11-02T22:49:28.331Z",
  "combatants": [
   {
    "itemId": "4e4e6e1e-00c8-4171-81f2-05103924cd1b",
@@ -31,6 +31,12 @@
    "name": "Jenok",
    "initiative": 8,
    "ac": 15
+  },
+  {
+   "itemId": "fb3962db-9348-4eee-a22a-9823c553d82d",
+   "name": "Male Human 3",
+   "realName": "Coll",
+   "initiative": 0
   }
  ]
 }
