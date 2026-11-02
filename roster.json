@@ -1,4 +1,36 @@
 {
- "savedAt": "2026-11-02T22:19:45.055Z",
- "combatants": []
+ "savedAt": "2026-11-02T22:36:53.773Z",
+ "combatants": [
+  {
+   "itemId": "4e4e6e1e-00c8-4171-81f2-05103924cd1b",
+   "name": "Alric Venn",
+   "realName": "Alric Venn",
+   "initiative": 0,
+   "ac": 16
+  },
+  {
+   "itemId": "d1c8db8a-8445-4c93-8b92-531e1010e6f2",
+   "name": "Danzel",
+   "initiative": 0,
+   "ac": 16
+  },
+  {
+   "itemId": "a0f60a4f-8881-436a-88ad-075fca2c9893",
+   "name": "Jenok",
+   "initiative": 0,
+   "ac": 15
+  },
+  {
+   "itemId": "8c19a71d-a9e8-4fcd-8c3e-257247a4f328",
+   "name": "Tenok",
+   "initiative": 0,
+   "ac": 16
+  },
+  {
+   "itemId": "f5ee439c-6fc4-4700-9a1d-243fbed5adba",
+   "name": "An",
+   "initiative": 0,
+   "ac": 16
+  }
+ ]
 }
