@@ -1,4 +1,63 @@
 {
- "savedAt": "2026-11-02T12:37:36.259Z",
- "combatants": []
+ "savedAt": "2026-11-02T12:38:21.589Z",
+ "combatants": [
+  {
+   "itemId": "16d7f9d8-cc07-49ce-a22e-9f00885df1e1",
+   "name": "Male Elf 1",
+   "realName": "Osric",
+   "initiative": 0,
+   "ac": 11
+  },
+  {
+   "itemId": "cce20b91-c811-47b6-9a92-29090c560e8a",
+   "name": "Male Gnome 1",
+   "realName": "Fenn",
+   "initiative": 0,
+   "ac": 11
+  },
+  {
+   "itemId": "76d92c53-b398-4568-98e6-ef5e1005aa20",
+   "name": "Male Human 1",
+   "realName": "Perran Carew",
+   "initiative": 0,
+   "ac": 11
+  },
+  {
+   "itemId": "9670ac49-2b0f-4bd8-9e52-349eb116a32d",
+   "name": "Male Human 2",
+   "realName": "Aldwyn",
+   "initiative": 0,
+   "ac": 11
+  },
+  {
+   "itemId": "916fb815-16b7-4441-a6ed-bcaa4c59b42d",
+   "name": "Danzel",
+   "initiative": 0,
+   "ac": 16
+  },
+  {
+   "itemId": "47925504-1262-4a90-b350-b7192ddaca68",
+   "name": "Wren",
+   "initiative": 0,
+   "ac": 11
+  },
+  {
+   "itemId": "2553dd87-23cd-4ce4-96ee-da01e476386e",
+   "name": "Jenok",
+   "initiative": 0,
+   "ac": 15
+  },
+  {
+   "itemId": "0443252a-d3bd-4738-a612-1d0d557ba393",
+   "name": "Tenok",
+   "initiative": 0,
+   "ac": 16
+  },
+  {
+   "itemId": "fa745153-e10b-4dbd-9b1a-81ee65ec6cf0",
+   "name": "An",
+   "initiative": 0,
+   "ac": 16
+  }
+ ]
 }
