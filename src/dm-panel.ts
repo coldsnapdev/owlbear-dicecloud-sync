@@ -195,7 +195,7 @@ function targetBar(): string {
   if (!chips.length) return "";
   return `<div class="target-bar"><span class="tb-label">Target${chips.length === 1 ? "" : "s"}</span>${
     chips.length
-      ? chips.map((c) => `<span class="tb-chip">${escapeHtml(c.realName || c.name)}${c.ac !== undefined ? ` <small>AC ${c.ac}</small>` : ""}<button type="button" class="tb-x" data-id="${escapeHtml(c.itemId)}" title="Drop this target">×</button></span>`).join("") +
+      ? chips.map((c) => `<span class="tb-chip">${escapeHtml(c.name)}${c.ac !== undefined ? ` <small>AC ${c.ac}</small>` : ""}<button type="button" class="tb-x" data-id="${escapeHtml(c.itemId)}" title="Drop this target">×</button></span>`).join("") +
         `<button type="button" class="tb-clear">Clear</button>`
       : `<span class="tb-hint">${owlbearWindow() ? "Select tokens in Owlbear, or tap ◎ on a tile" : "Tap ◎ on a tile"}</span>`
   }</div>`;
@@ -1178,7 +1178,7 @@ function resolveCard(): string {
     const err = t.state === "error" ? `<div class="rs-err">${e(t.error ?? "Failed")}${pc ? ` <button type="button" class="rs-mini" data-rs="forge-only" data-t="${ti}">Apply to Forge only</button>` : ""}</div>` : "";
     const conc = t.state === "done" && !r.healing && amt > 0 && (statuses[t.itemId] ?? []).some((s) => s.key === "concentrating") ? `<div class="rs-note">Concentration save: DC ${Math.min(30, Math.max(10, Math.floor(amt / 2)))}</div>` : "";
     const rot = t.state === "done" && r.healing && (statuses[t.itemId] ?? []).some((s) => s.key === "rotten") ? `<div class="rs-note">Rotten: magical healing clears all stacks</div>` : "";
-    return `<div class="rs-row ${t.state ?? ""}"><div class="rs-who">${e(c.realName || c.name)}${pc ? ` <small title="Changes go to their DiceCloud sheet">sheet</small>` : ""}${c.hp !== undefined ? ` <small>${c.hp}${c.tempHp ? `+${c.tempHp}` : ""}/${c.maxHp ?? "?"}</small>` : ""}</div><div class="rs-mid">${save}${parts}</div><div class="rs-act">${action}</div>${err}${conc}${rot}</div>`;
+    return `<div class="rs-row ${t.state ?? ""}"><div class="rs-who">${e(c.name)}${c.realName && c.realName !== c.name ? ` <small class="real-name">${e(c.realName)}</small>` : ""}${pc ? ` <small title="Changes go to their DiceCloud sheet">sheet</small>` : ""}${c.hp !== undefined ? ` <small>${c.hp}${c.tempHp ? `+${c.tempHp}` : ""}/${c.maxHp ?? "?"}</small>` : ""}</div><div class="rs-mid">${save}${parts}</div><div class="rs-act">${action}</div>${err}${conc}${rot}</div>`;
   });
   const open = r.targets.some((t) => !t.state && !t.missed);
   return `<div class="resolve">
@@ -1379,7 +1379,7 @@ function render() {
         ? `<input class="pc-init-in" type="number" data-init-in="${id}" value="${c.hasInit === false ? "" : c.initiative}" />`
         : `<span class="pc-init ${c.hasInit === false ? "none" : ""}" data-init="${id}" title="Click to enter initiative">${c.hasInit === false ? "–" : c.initiative}</span>`;
       const roll = entry && !c.sheet ? `<span class="pc-roll" data-roll="${id}" title="Roll initiative">⚄</span>` : "";
-      return `<div role="button" tabindex="0" class="pc-pill ${open.has(c.itemId) ? "on" : ""} ${!entry || c.sheet ? "party" : c.ally ? "ally" : "npc"} ${tgt ? "targeted" : ""} ${c.itemId === turnId ? "turn" : ""} ${c.visible === false ? "hid" : ""}" data-id="${id}" title="${escapeHtml((c.realName || c.name) + alias)}">${roll}<span class="tgt" data-tgt="${id}" title="${tgt ? "Untarget" : "Target"}">◎</span><span class="pc-name">${escapeHtml(c.realName || c.name)}</span>${init}${hpBar(c)}${headChips(c.itemId)}</div>`;
+      return `<div role="button" tabindex="0" class="pc-pill ${open.has(c.itemId) ? "on" : ""} ${!entry || c.sheet ? "party" : c.ally ? "ally" : "npc"} ${tgt ? "targeted" : ""} ${c.itemId === turnId ? "turn" : ""} ${c.visible === false ? "hid" : ""}" data-id="${id}" title="${escapeHtml(c.realName && c.realName !== c.name ? `${c.name} (really ${c.realName})` : c.name)}">${roll}<span class="tgt" data-tgt="${id}" title="${tgt ? "Untarget" : "Target"}">◎</span><span class="pc-name">${escapeHtml(c.name)}</span>${init}${hpBar(c)}${headChips(c.itemId)}</div>`;
     })
     .join("")}</div>`;
   app.innerHTML = combatBar() + tiles + targetBar() + resolveCard() + roster.combatants.filter((c) => open.has(c.itemId)).map(card).join("");

@@ -18,9 +18,17 @@
       .stage > .chip.far { opacity: .82; }
       .stage > .chip.turn { z-index: 3; }
       .arrow { top: 40px !important; width: 26px; height: 46px; border-radius: 8px; border: 1px solid rgba(201,162,94,.5); background: rgba(22,17,12,.85); color: #e2c27f; font: 700 26px/1 Cinzel, serif; padding: 0 0 4px; cursor: pointer; box-shadow: 0 3px 8px rgba(0,0,0,.4); transition: transform .6s cubic-bezier(.35,.0,.2,1); z-index: 4; }
-      .wrap-line { position: absolute; left: 50%; top: 10px; height: 100px; width: 0; border-left: 3px dotted rgba(240,200,105,.95); filter: drop-shadow(0 0 2px rgba(0,0,0,.8)); transition: transform .6s cubic-bezier(.35,.0,.2,1); pointer-events: none; }
+      /* where the order wraps: a dotted gold line that fades out at both ends */
+      .wrap-line {
+        position: absolute; left: 50%; top: 4px; height: 112px; width: 3px; margin-left: -1.5px; pointer-events: none;
+        background: repeating-linear-gradient(to bottom, rgba(240,200,105,.95) 0 3px, transparent 3px 7px);
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 22%, #000 58%, transparent 92%);
+        mask-image: linear-gradient(to bottom, transparent 0%, #000 22%, #000 58%, transparent 92%);
+        border-radius: 2px; transition: transform .6s cubic-bezier(.35,.0,.2,1);
+      }
       .arrow:hover { background: rgba(201,162,94,.28); color: #fff4dc; }
       .arrow.next { border-color: #f0c869; color: #f0c869; }
+      .real { margin-top: 2px; max-width: 120px; font: italic 600 11px/1.1 "Crimson Pro", serif; color: #d9c9a6; padding: 2px 6px; border-radius: 5px; background: rgba(22,17,12,.82); border: 1px dashed rgba(201,162,94,.45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .rnd { margin-top: 2px; font: 700 9px/1 Cinzel, serif; letter-spacing: .12em; text-transform: uppercase; color: #c9a25e; padding: 3px 7px; border-radius: 5px; background: rgba(22,17,12,.88); border: 1px solid rgba(201,162,94,.35); white-space: nowrap; }
       .rnd.now { color: #1b140c; background: #f0c869; border-color: #f0c869; }
       .round-box { margin-top: -40px; font: 700 10px/1 Cinzel, serif; letter-spacing: .06em; text-transform: uppercase; color: #a8967a; padding: 4px 9px; border-radius: 6px; background: rgba(22,17,12,.88); border: 1px solid rgba(201,162,94,.4); }

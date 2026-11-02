@@ -35,7 +35,10 @@ function chip(u: Unit, roundLabel?: string): string {
   const pct = u.maxHp ? Math.max(0, Math.min(100, ((u.hp ?? 0) / u.maxHp) * 100)) : undefined;
   const tone = pct === undefined ? "" : pct <= 25 ? "low" : pct <= 50 ? "mid" : "";
   const sts = gm ? gmStatuses()[u.id] ?? [] : state.statuses?.[u.id] ?? [];
-  const name = gm && u.realName && u.realName !== u.name ? u.realName : u.name;
+  // the name the players know is the one on the shield, for the GM too; the GM also gets
+  // the real name in a small tag beneath, so it can't slip out by accident
+  const name = u.name;
+  const real = gm && u.realName && u.realName !== u.name ? `<div class="real" title="Real name (only you see this)">${esc(u.realName)}</div>` : "";
   const init = `<span class="init ${u.init === undefined ? "none" : ""}">${u.init ?? "–"}</span>`;
   const bar = pct !== undefined ? `<div class="hp ${tone}"><i style="width:${pct.toFixed(0)}%"></i>${u.tempHp ? "<b></b>" : ""}</div>` : "";
   const stats = showNums
@@ -53,7 +56,7 @@ function chip(u: Unit, roundLabel?: string): string {
       <div class="name">${esc(fitName(name))}</div>
       ${stats}
     </div></div>
-    ${label}${below}`;
+    ${real}${label}${below}`;
 }
 
 // slot geometry: shields are 96 wide; the active one is scaled up
@@ -126,7 +129,7 @@ function render() {
       els.set(u.id, el);
     }
     el.className = `chip ${u.party ? "party" : u.ally ? "ally" : "npc"} ${isActive ? "turn" : ""} ${u.visible ? "" : "hidden"} ${live && k !== 0 && Math.abs(k) > 1 ? "far" : ""}`;
-    el.title = `${gm && u.realName ? u.realName : u.name}`;
+    el.title = gm && u.realName && u.realName !== u.name ? `${u.name} (really ${u.realName})` : u.name;
     el.innerHTML = chip(u, label);
     const x = offsetFor(k, live);
     const sc = scaleFor(k, live);
