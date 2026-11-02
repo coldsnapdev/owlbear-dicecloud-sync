@@ -205,7 +205,8 @@ function render() {
 }
 
 // Names that fit the shield: the full name if it fits; otherwise a named character's first
-// name, or for numbered creatures ("Rot Skulker 4") their initials and number ("RS 4").
+// name, or for numbered creatures the leading words cut to initials one at a time, keeping
+// the kind of creature to last ("Male Gnome 1" → "M Gnome 1" → "MG 1").
 const measure = document.createElement("canvas").getContext("2d")!;
 const NAME_FONT = '700 15px "Crimson Pro", Georgia, serif';
 const NAME_W = 82;
@@ -215,8 +216,14 @@ function fitName(full: string): string {
   if (fits(full)) return full;
   const numbered = full.match(/^(.*?)\s*(\d+)$/);
   if (numbered) {
-    const initials = numbered[1].split(/\s+/).filter(Boolean).map((w) => w[0].toUpperCase()).join("");
-    return `${initials} ${numbered[2]}`;
+    // keep the creature's kind as long as possible: "Male Gnome 1" → "M Gnome 1" → "MG 1"
+    const words = numbered[1].split(/\s+/).filter(Boolean);
+    const initial = (ws: string[]) => ws.map((w) => w[0].toUpperCase()).join("");
+    for (let i = 1; i < words.length; i++) {
+      const tryName = `${initial(words.slice(0, i))} ${words.slice(i).join(" ")} ${numbered[2]}`;
+      if (fits(tryName)) return tryName;
+    }
+    return `${initial(words)} ${numbered[2]}`;
   }
   const first = full.split(/\s+/)[0];
   return fits(first) ? first : first;
