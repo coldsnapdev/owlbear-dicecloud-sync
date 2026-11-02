@@ -1,4 +1,5 @@
 import { BUILD, BUILD_NOTE } from "./build";
+import { liveBuild, refreshPages, REFRESH_CHANNEL } from "./refresh";
 import { LINK_STATUS_KEY, LIVE_STATUS_KEY, RELAY_STATUS_KEY } from "./live";
 import OBR, { type Item } from "@owlbear-rodeo/sdk";
 import {
@@ -31,7 +32,7 @@ const app = document.getElementById("app")!;
 app.innerHTML = `
   <header class="top">
     <h1>DM Panel Set-up</h1>
-    <span class="build">build ${BUILD}</span>
+    <span class="build">build ${BUILD} <span id="newer"></span><button id="update" class="secondary mini" type="button" title="Fetch the newest version of the extension and reload it, for you and the players">⟳ Update</button></span>
   </header>
   <div class="open-row">
     <button id="dm-panel-link" type="button">Open DM panel ↗</button>
@@ -87,6 +88,23 @@ document.getElementById("party-add")!.addEventListener("click", async () => {
   const n = await addPartyToScene();
   partyStatus.textContent = n ? `Added ${n}` : "Everyone's already here";
   setTimeout(showParty, 1500);
+});
+
+// Update: refresh the extension's pages past the cache, then reload every part of it,
+// here and (via the broadcast) on every player's screen; the DM panel reloads too.
+const updateBtn = document.getElementById("update") as HTMLButtonElement;
+async function checkNewer() {
+  const live = await liveBuild();
+  const el = document.getElementById("newer")!;
+  el.textContent = live && live > BUILD ? `→ ${live} ready` : "";
+  updateBtn.classList.toggle("ready", !!live && live > BUILD);
+}
+updateBtn.addEventListener("click", async () => {
+  updateBtn.disabled = true;
+  updateBtn.textContent = "Updating…";
+  await refreshPages();
+  await OBR.broadcast.sendMessage(REFRESH_CHANNEL, { at: Date.now() }, { destination: "ALL" });
+  setTimeout(() => location.reload(), 300);
 });
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;
@@ -419,6 +437,7 @@ OBR.onReady(async () => {
   }
   await initCredentialsForm();
   showParty().catch(() => {});
+  checkNewer().catch(() => {});
   await renderMappings();
   // Covers both "no scene yet, one opens later" and "scene changes" — the
   // onChange listener itself only gets attached (once) inside

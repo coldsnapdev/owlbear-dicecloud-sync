@@ -5,6 +5,7 @@
 // manual, lets the DM roll from the stat block, and posts the results to
 // Discord with flavour text (and full spell text) for the table.
 import { BUILD } from "./build";
+import { refreshPages } from "./refresh";
 import { liveCode, liveTopic, onOwlbear, owlbearBuild, owlbearWindow, publishLive, relayStatus, sendDirect, sendLocal, type HpResult, type LiveCombatant, type LiveMessage } from "./live";
 import {
   loadAssignments,
@@ -142,6 +143,11 @@ let scrollToTurn = false;
 let lastLiveFp = "";
 const asEntry = (c: LiveCombatant): RosterEntry => ({ itemId: c.itemId, name: c.name, realName: c.realName, initiative: c.initiative, ac: c.ac, hp: c.hp, maxHp: c.maxHp, tempHp: c.tempHp, hasInit: c.hasInit, visible: c.visible, dex: c.dex, sheet: c.sheet, ally: c.ally });
 onOwlbear((m) => {
+  if (m.kind === "reload") {
+    // the extension was just updated: fetch this page fresh and reload (the link comes back by itself)
+    refreshPages().finally(() => location.reload());
+    return;
+  }
   if (m.kind === "roster") {
     // Forge's turn moved on: highlight the new combatant and open their card (closing the
     // previous one only if it was opened for its turn, not by hand)

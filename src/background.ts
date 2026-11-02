@@ -1,6 +1,7 @@
 import { ALLY_KEY, applyStatBlock, endCombat, getState, step } from "./combat";
 import { mirrorStatuses, startCombatHost } from "./combatHost";
 import { BUILD } from "./build";
+import { refreshPages, REFRESH_CHANNEL } from "./refresh";
 import { LINK_STATUS_KEY, LIVE_STATUS_KEY, RELAY_STATUS_KEY, listenLocal, type HpMessage, type HpResult, type LinkEnvelope, type LiveCombatant, type LiveMessage, type OwlbearMessage, liveCode, liveTopic, subscribeLive, type LiveSubscription } from "./live";
 import OBR from "@owlbear-rodeo/sdk";
 import { diceCloudLogin, fetchCreatureStats, fetchCompanionStats, fetchHealthBars, type DiceCloudSession } from "./dicecloud";
@@ -668,9 +669,28 @@ function attachItemChangeListener() {
   });
 }
 
+// ⟳ Update from the popover (on any client): fetch fresh pages, tell the DM panel to do the
+// same, close the strip so it reopens fresh, then reload this page.
+function listenForRefresh() {
+  OBR.broadcast.onMessage(REFRESH_CHANNEL, async () => {
+    await refreshPages();
+    sendToPanel({ kind: "reload" });
+    await OBR.popover.close("com.abelon.combat/strip").catch(() => {});
+    try {
+      // our turn marker only: it's redrawn after the reload
+      const ours = (await OBR.scene.local.getItems()).filter((i) => i.metadata["com.abelon.combat/turn-marker"]).map((i) => i.id);
+      if (ours.length) await OBR.scene.local.deleteItems(ours);
+    } catch {
+      // no scene open
+    }
+    setTimeout(() => location.reload(), 200);
+  });
+}
+
 OBR.onReady(async () => {
   log("Extension background ready.");
   listenForDice();
+  listenForRefresh();
   startCombatHost().catch((err) => log("Combat strip failed to start:", err));
 
   if (await OBR.scene.isReady()) {

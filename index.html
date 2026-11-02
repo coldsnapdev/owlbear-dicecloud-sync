@@ -25,7 +25,10 @@
       }
       .top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
       h1 { font-size: 14px; text-transform: uppercase; letter-spacing: .05em; color: var(--brass); margin: 0; }
-      .build { font-size: 11px; color: var(--ink-soft); }
+      .build { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-soft); }
+      #newer { color: var(--ok); font-weight: 600; }
+      button.mini { padding: 2px 7px; font-size: 11px; }
+      button.mini.ready { background: var(--ok); border-color: var(--ok); color: white; }
       h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--brass); margin: 0 0 2px; }
       h3 { font-size: 12px; margin: 0 0 4px; color: var(--ink); }
       .open-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }

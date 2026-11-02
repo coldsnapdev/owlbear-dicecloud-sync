@@ -151,6 +151,7 @@ export interface LiveCombatant {
 export type OwlbearMessage =
   | { kind: "roster"; combatants: LiveCombatant[]; forgeInfo?: string; turn?: string; round?: number }
   | { kind: "selection"; ids: string[] }
+  | { kind: "reload" }
   | HpResult;
 
 // "loopback" tells Chrome/Opera up front that this goes to this computer (local network access)
