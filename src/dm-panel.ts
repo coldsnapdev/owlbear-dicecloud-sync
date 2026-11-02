@@ -135,15 +135,17 @@ showLink();
 
 // --- Live from Owlbear: the roster (with HP) and the GM's selection ---------------------
 let liveRoster: LiveCombatant[] | undefined;
-let turnId: string | undefined; // Forge's active combatant
+let turnId: string | undefined; // the active combatant
+let round = 0;
 let autoOpened: string | undefined;
 let scrollToTurn = false;
 let lastLiveFp = "";
-const asEntry = (c: LiveCombatant): RosterEntry => ({ itemId: c.itemId, name: c.name, realName: c.realName, initiative: c.initiative, ac: c.ac, hp: c.hp, maxHp: c.maxHp, tempHp: c.tempHp });
+const asEntry = (c: LiveCombatant): RosterEntry => ({ itemId: c.itemId, name: c.name, realName: c.realName, initiative: c.initiative, ac: c.ac, hp: c.hp, maxHp: c.maxHp, tempHp: c.tempHp, hasInit: c.hasInit, visible: c.visible, dex: c.dex, sheet: c.sheet });
 onOwlbear((m) => {
   if (m.kind === "roster") {
     // Forge's turn moved on: highlight the new combatant and open their card (closing the
     // previous one only if it was opened for its turn, not by hand)
+    round = m.round ?? 0;
     if (m.turn !== turnId) {
       if (turnId && autoOpened === turnId) open.delete(turnId);
       turnId = m.turn;
@@ -169,7 +171,7 @@ onOwlbear((m) => {
   }
 });
 // don't redraw under someone typing a custom status
-const busyTyping = () => document.activeElement instanceof HTMLInputElement && document.activeElement.classList.contains("st-custom");
+const busyTyping = () => document.activeElement instanceof HTMLInputElement && (document.activeElement.classList.contains("st-custom") || document.activeElement.classList.contains("pc-init-in"));
 
 // --- Targets ----------------------------------------------------------------------------
 let targets: string[] = [];
@@ -1204,6 +1206,111 @@ function wireResolve() {
   );
 }
 
+// --- Initiative and the fight itself (the strip in Owlbear shows the result) -------------
+let initEditing: string | undefined;
+let endArmed = false;
+function combatBar(): string {
+  if (!roster?.combatants.length || !owlbearWindow()) return "";
+  const npcsToRoll = roster.combatants.filter((c) => !c.sheet && entryFor(c).entry && c.hasInit === false).length;
+  return `<div class="combat-bar">
+    <span class="cb-round">${turnId ? `Round ${round || 1}` : "Not started"}</span>
+    <button type="button" class="cb-btn" data-cb="roll" ${npcsToRoll ? "" : "disabled"} title="Roll initiative for every NPC that hasn't rolled">Roll NPCs${npcsToRoll ? ` (${npcsToRoll})` : ""}</button>
+    <button type="button" class="cb-btn ${endArmed ? "armed" : ""}" data-cb="end">${endArmed ? "Click again to end" : "End combat"}</button>
+  </div>`;
+}
+function sendInit(values: Record<string, number | null>) {
+  for (const [id, v] of Object.entries(values)) {
+    const c = combatant(id);
+    if (c) {
+      c.initiative = v ?? 0;
+      c.hasInit = v !== null;
+    }
+  }
+  fastSend({ kind: "combat", id: crypto.randomUUID(), at: new Date().toISOString(), op: "init", values });
+}
+function dexMod(c: RosterEntry): number {
+  const own = c.dex;
+  const dex = own ?? Number((entryFor(c).entry?.forge as Record<string, unknown> | undefined)?.[F + "Z018"]);
+  return Number.isFinite(dex) && dex > 0 ? Math.floor((dex - 10) / 2) : 0;
+}
+function rollInitiative(list: RosterEntry[]) {
+  if (!list.length) return;
+  const rolls = list.map((c) => ({ c, d: randInt(20), mod: dexMod(c) }));
+  sendInit(Object.fromEntries(rolls.map((r) => [r.c.itemId, r.d + r.mod])));
+  // the table sees visible creatures roll; hidden ones roll privately
+  for (const [group, priv] of [[rolls.filter((r) => r.c.visible !== false), false], [rolls.filter((r) => r.c.visible === false), true]] as const) {
+    if (!group.length) continue;
+    const one = group.length === 1 ? group[0] : undefined;
+    log(
+      { who: one ? one.c.realName || one.c.name : "Initiative", action: one ? "Initiative" : "NPC initiative", text: group.map((r) => `${group.length > 1 ? `${escapeHtml(r.c.realName || r.c.name)}: ` : ""}<span class="big">${r.d + r.mod}</span> <span class="how">d20 ${r.d}${signed(r.mod)}</span>`).join("<br>") },
+      { author: { name: one ? one.c.name : "Initiative" }, description: group.map((r) => `${r.c.name}: **${r.d + r.mod}**`).join("\n"), color: COLOUR.brass },
+      priv,
+      {
+        who: one ? one.c.name : "Initiative",
+        action: one ? "Initiative" : "",
+        dice: group.slice(0, 12).map((r) => ({ sides: 20, value: r.d, tint: "brass" })),
+        mod: one?.mod,
+        results: group.map((r) => ({ value: r.d + r.mod, label: one ? "initiative" : r.c.name })),
+        detail: group.map((r) => `${group.length > 1 ? `${r.c.name}: ` : ""}d20 ${r.d}${signed(r.mod)}`).join(" · "),
+      },
+    );
+  }
+  render();
+}
+function wireInitiative() {
+  app.querySelectorAll<HTMLElement>("[data-init]").forEach((el) =>
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      initEditing = el.dataset.init;
+      render();
+    }),
+  );
+  app.querySelectorAll<HTMLElement>("[data-roll]").forEach((el) =>
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const c = combatant(el.dataset.roll!);
+      if (c) rollInitiative([c]);
+    }),
+  );
+  const input = app.querySelector<HTMLInputElement>("[data-init-in]");
+  if (input) {
+    input.focus();
+    input.select();
+    let done = false;
+    const save = (keep: boolean) => {
+      if (done) return;
+      done = true;
+      const v = input.value.trim();
+      initEditing = undefined;
+      if (keep && v !== "" && Number.isFinite(Number(v))) sendInit({ [input.dataset.initIn!]: Math.round(Number(v)) });
+      render();
+    };
+    input.addEventListener("click", (e) => e.stopPropagation());
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") save(true);
+      if (e.key === "Escape") save(false);
+    });
+    input.addEventListener("blur", () => save(true));
+  }
+  app.querySelector<HTMLButtonElement>('[data-cb="roll"]')?.addEventListener("click", () =>
+    rollInitiative((roster?.combatants ?? []).filter((c) => !c.sheet && entryFor(c).entry && c.hasInit === false)),
+  );
+  app.querySelector<HTMLButtonElement>('[data-cb="end"]')?.addEventListener("click", () => {
+    if (!endArmed) {
+      endArmed = true;
+      render();
+      setTimeout(() => {
+        endArmed = false;
+        render();
+      }, 3000);
+      return;
+    }
+    endArmed = false;
+    fastSend({ kind: "combat", id: crypto.randomUUID(), at: new Date().toISOString(), op: "end" });
+    render();
+  });
+}
+
 function hpBar(c: RosterEntry): string {
   if (c.hp === undefined || !c.maxHp) return "";
   const pct = Math.max(0, Math.min(100, (c.hp / c.maxHp) * 100));
@@ -1260,10 +1367,15 @@ function render() {
       const { entry } = entryFor(c);
       const alias = c.realName && c.realName !== c.name ? ` (shown as ${c.name})` : "";
       const tgt = targets.includes(c.itemId);
-      return `<button type="button" class="pc-pill ${open.has(c.itemId) ? "on" : ""} ${entry ? "npc" : "party"} ${tgt ? "targeted" : ""} ${c.itemId === turnId ? "turn" : ""}" data-id="${escapeHtml(c.itemId)}" title="${escapeHtml((c.realName || c.name) + alias)}"><span class="tgt" data-tgt="${escapeHtml(c.itemId)}" title="${tgt ? "Untarget" : "Target"}">◎</span><span class="pc-name">${escapeHtml(c.realName || c.name)}</span><span class="pc-init">${c.initiative}</span>${hpBar(c)}${headChips(c.itemId)}</button>`;
+      const id = escapeHtml(c.itemId);
+      const init = initEditing === c.itemId
+        ? `<input class="pc-init-in" type="number" data-init-in="${id}" value="${c.hasInit === false ? "" : c.initiative}" />`
+        : `<span class="pc-init ${c.hasInit === false ? "none" : ""}" data-init="${id}" title="Click to enter initiative">${c.hasInit === false ? "–" : c.initiative}</span>`;
+      const roll = entry && !c.sheet ? `<span class="pc-roll" data-roll="${id}" title="Roll initiative">⚄</span>` : "";
+      return `<div role="button" tabindex="0" class="pc-pill ${open.has(c.itemId) ? "on" : ""} ${entry ? "npc" : "party"} ${tgt ? "targeted" : ""} ${c.itemId === turnId ? "turn" : ""} ${c.visible === false ? "hid" : ""}" data-id="${id}" title="${escapeHtml((c.realName || c.name) + alias)}">${roll}<span class="tgt" data-tgt="${id}" title="${tgt ? "Untarget" : "Target"}">◎</span><span class="pc-name">${escapeHtml(c.realName || c.name)}</span>${init}${hpBar(c)}${headChips(c.itemId)}</div>`;
     })
     .join("")}</div>`;
-  app.innerHTML = tiles + targetBar() + resolveCard() + roster.combatants.filter((c) => open.has(c.itemId)).map(card).join("");
+  app.innerHTML = combatBar() + tiles + targetBar() + resolveCard() + roster.combatants.filter((c) => open.has(c.itemId)).map(card).join("");
   wireResolve();
   if (scrollToTurn && !scrollToResolve) {
     scrollToTurn = false;
@@ -1284,8 +1396,10 @@ function render() {
   );
   app.querySelectorAll<HTMLButtonElement>(".tb-x").forEach((b) => b.addEventListener("click", () => setTargets(targets.filter((x) => x !== b.dataset.id))));
   app.querySelector<HTMLButtonElement>(".tb-clear")?.addEventListener("click", () => setTargets([]));
-  app.querySelectorAll<HTMLButtonElement>("button.pc-pill").forEach((b) =>
-    b.addEventListener("click", () => {
+  wireInitiative();
+  app.querySelectorAll<HTMLElement>(".pc-pill").forEach((b) =>
+    b.addEventListener("click", (e) => {
+      if ((e.target as HTMLElement).closest("[data-init], [data-roll], [data-init-in]")) return;
       const id = b.dataset.id!;
       if (open.has(id)) open.delete(id);
       else open.add(id);

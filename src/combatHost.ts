@@ -11,7 +11,7 @@ import { getGitHubToken, loadAssignments, loadBestiary, type Assignments, type B
 
 const STRIP_ID = "com.abelon.combat/strip";
 const CHIP_W = 104; // shield 96 + gap 8
-const STRIP_H = 168; // shield, the turn's lift, and two rows of statuses
+const STRIP_H = 186; // shield, the turn's lift, two rows of statuses, the round box
 
 // --- The strip popover --------------------------------------------------------------------
 let gm = false;
@@ -20,7 +20,7 @@ let stripWidth = 0;
 let openedAtVw = 0;
 
 function widthFor(n: number, vw: number) {
-  return Math.max(160, Math.min(vw - 140, n * CHIP_W + 20 + (gm ? 150 : 90)));
+  return Math.max(160, Math.min(vw - 140, n * CHIP_W + 24 + (gm ? 64 : 0)));
 }
 async function updateStrip() {
   if (!(await OBR.scene.isReady())) return closeStrip();
@@ -227,8 +227,8 @@ async function updateMarker() {
     await clearMarker();
     const halo = buildShape()
       .shapeType("CIRCLE")
-      .width(size * 1.55)
-      .height(size * 1.55)
+      .width(size * 1.24)
+      .height(size * 1.24)
       .position(b.center)
       .fillColor("#f0c869")
       .fillOpacity(0.22)
@@ -243,14 +243,14 @@ async function updateMarker() {
       .build();
     const ring = buildShape()
       .shapeType("CIRCLE")
-      .width(size * 1.3)
-      .height(size * 1.3)
+      .width(size * 1.13)
+      .height(size * 1.13)
       .position(b.center)
       .fillOpacity(0)
       .strokeColor("#f6d98e")
       .strokeOpacity(0.95)
-      .strokeWidth(Math.max(3, Math.round(dpi * 0.05)))
-      .strokeDash([Math.round(dpi * 0.26), Math.round(dpi * 0.12)])
+      .strokeWidth(Math.max(2, Math.round(dpi * 0.035)))
+      .strokeDash([Math.round(dpi * 0.2), Math.round(dpi * 0.1)])
       .layer("PROP")
       .attachedTo(token.id)
       .disableAttachmentBehavior(["ROTATION", "SCALE", "COPY"])
@@ -268,8 +268,8 @@ async function updateMarker() {
       OBR.scene.local
         .updateItems([m.halo, m.ring], (its) => {
           for (const it of its) {
-            if (it.id === m.ring) it.rotation = (t * 40) % 360; // one turn every 9 s
-            else (it as Item & { style: { fillOpacity: number } }).style.fillOpacity = 0.16 + 0.14 * (0.5 + 0.5 * Math.sin(t * 2.2));
+            if (it.id === m.ring) it.rotation = (t * 12) % 360; // one turn every 30 s
+            else (it as Item & { style: { fillOpacity: number } }).style.fillOpacity = 0.14 + 0.1 * (0.5 + 0.5 * Math.sin(t * 1.3));
           }
         })
         .catch(() => {});

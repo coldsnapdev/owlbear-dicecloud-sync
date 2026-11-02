@@ -1,4 +1,4 @@
-import { applyStatBlock, getState } from "./combat";
+import { applyStatBlock, endCombat, getState, step } from "./combat";
 import { mirrorStatuses, startCombatHost } from "./combatHost";
 import { BUILD } from "./build";
 import { LINK_STATUS_KEY, LIVE_STATUS_KEY, RELAY_STATUS_KEY, listenLocal, type HpMessage, type HpResult, type LinkEnvelope, type LiveCombatant, type LiveMessage, type OwlbearMessage, liveCode, liveTopic, subscribeLive, type LiveSubscription } from "./live";
@@ -234,6 +234,23 @@ function handleLiveMessage(msg: LiveMessage) {
     );
     return;
   }
+  if (msg.kind === "combat") {
+    if (doneCommands.has(msg.id)) return;
+    doneCommands.add(msg.id);
+    const run =
+      msg.op === "next" ? step(1)
+      : msg.op === "prev" ? step(-1)
+      : msg.op === "end" ? endCombat()
+      : OBR.scene.items.updateItems(Object.keys(msg.values ?? {}), (its) => {
+          for (const it of its) {
+            const v = msg.values![it.id];
+            if (v === null || v === undefined) delete it.metadata["com.battle-system.forge/init"];
+            else it.metadata["com.battle-system.forge/init"] = String(v);
+          }
+        });
+    run.catch((err) => log("Combat control failed:", err));
+    return;
+  }
   if (msg.kind === "roster-request") {
     pushRoster(true).catch((err) => log("Couldn't send the roster:", err));
     return;
@@ -360,6 +377,12 @@ function sendToPanel(m: OwlbearMessage) {
   }
 }
 let lastRosterSent = "";
+const extra = (it?: Item) => {
+  if (!it) return {};
+  const init = it.metadata["com.battle-system.forge/init"];
+  const dex = Number(it.metadata["com.battle-system.forge/Z018"]);
+  return { hasInit: init !== undefined && init !== "" || undefined, visible: it.visible, dex: Number.isFinite(dex) && dex > 0 ? dex : undefined };
+};
 async function pushRoster(force = false) {
   if (!panelWindow || !(await OBR.scene.isReady())) return;
   const items = await OBR.scene.items.getItems();
@@ -368,12 +391,14 @@ async function pushRoster(force = false) {
     itemId: c.itemId, name: c.name, realName: c.realName, initiative: c.initiative,
     ac: c.ac, hp: c.currentHP, maxHp: c.maxHP, tempHp: c.tempHP,
     sheet: linked.has(c.itemId) || undefined, multipliers: sheetMultipliers.get(c.itemId),
+    ...extra(items.find((i) => i.id === c.itemId)),
   }));
+  const st = await getState();
   const turn = await currentTurn().catch(() => undefined);
-  const fp = JSON.stringify([combatants, turn]);
+  const fp = JSON.stringify([combatants, turn, st.round]);
   if (!force && fp === lastRosterSent) return;
   lastRosterSent = fp;
-  sendToPanel({ kind: "roster", combatants, turn });
+  sendToPanel({ kind: "roster", combatants, turn, round: st.round });
 }
 // Whose turn it is: Forge keeps the active token's id in "com.battle-system.forge/currturn"
 // as { data: itemId } (seen in Owlbear's sync traffic when advancing turns).

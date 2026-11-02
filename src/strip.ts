@@ -1,22 +1,16 @@
 // The combat strip across the top of everyone's screen: turn order, HP, AC, statuses.
 // Players see public information only (NPC HP as a bar, never numbers or AC; hidden tokens
-// left out). The GM also gets the controls: click an NPC to roll its initiative (or select
-// it once rolled), click a party member to type theirs, right-click for more, and
-// Start/Next/Back/End plus "Roll NPCs".
+// left out). The GM also gets arrows either side to move the turn; clicking a shield selects
+// its token. Initiative is rolled and entered in the DM panel.
 import OBR, { type Item } from "@owlbear-rodeo/sdk";
-import { COMBAT_KEY, endCombat, getState, partyIds, removeFromCombat, setInit, step, units, type CombatState, type Unit } from "./combat";
-import { DICE_CHANNEL, type ShownRoll } from "./diceTypes";
+import { COMBAT_KEY, getState, partyIds, step, units, type CombatState, type Unit } from "./combat";
 import { GM_STATUS_KEY } from "./stripKeys";
-import { getGitHubToken, loadAssignments, loadBestiary, type Assignments, type BestiaryEntry } from "./mailbox";
 
 const strip = document.getElementById("strip")!;
 let gm = false;
 let items: Item[] = [];
 let party = new Set<string>();
 let state: CombatState = { round: 0 };
-let editing: string | undefined;
-let menuFor: string | undefined;
-let endArmed = false;
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
@@ -38,10 +32,7 @@ function chip(u: Unit): string {
   const tone = pct === undefined ? "" : pct <= 25 ? "low" : pct <= 50 ? "mid" : "";
   const sts = gm ? gmStatuses()[u.id] ?? [] : state.statuses?.[u.id] ?? [];
   const name = gm && u.realName && u.realName !== u.name ? u.realName : u.name;
-  const init =
-    editing === u.id
-      ? `<span class="init editing"><input type="number" class="init-in" value="${u.init ?? ""}" /></span>`
-      : `<span class="init ${u.init === undefined ? "none" : ""}">${u.init ?? "–"}</span>`;
+  const init = `<span class="init ${u.init === undefined ? "none" : ""}">${u.init ?? "–"}</span>`;
   const bar = pct !== undefined ? `<div class="hp ${tone}"><i style="width:${pct.toFixed(0)}%"></i>${u.tempHp ? "<b></b>" : ""}</div>` : "";
   const stats = showNums
     ? `<div class="stats">
@@ -49,16 +40,13 @@ function chip(u: Unit): string {
         <div class="stat acv"><small>AC</small><span>${u.ac ?? "–"}</span></div>
       </div>${bar}`
     : `<div class="stats npc-only">${bar || ""}</div>`;
-  const below =
-    menuFor === u.id
-      ? `<div class="menu">${u.party ? "" : `<button data-m="roll">Roll</button>`}<button data-m="set">Set</button><button data-m="select">Select</button><button data-m="remove">Remove</button><button data-m="close">×</button></div>`
-      : sts.length
+  const below = sts.length
         ? `<div class="sts">${sts.map((st) => `<span class="${"dm" in st && st.dm ? "dm" : ""}" style="background:${esc(st.c)}">${esc(st.t)}</span>`).join("")}</div>`
         : "";
   return `<div class="chip ${u.party ? "party" : "npc"} ${turn ? "turn" : ""} ${u.visible ? "" : "hidden"}" data-id="${esc(u.id)}" title="${esc(name)}${showNums && u.maxHp ? ` · ${u.hp}/${u.maxHp} HP` : ""}">
     <div class="shield"><div class="rim"></div><div class="face">
       ${init}
-      <div class="name">${esc(name)}</div>
+      <div class="name">${esc(fitName(name))}</div>
       ${stats}
     </div></div>
     ${below}
@@ -68,40 +56,35 @@ function chip(u: Unit): string {
 function render() {
   const list = units(items, party).filter((u) => gm || u.visible);
   document.body.classList.toggle("gm", gm);
-  const ctl = gm
-    ? `<div class="ctl">
-        <div class="round">${state.turn ? `Round ${state.round || 1}` : "Combat"}</div>
-        <div class="row"><button data-c="prev" title="Back a turn">◀</button><button class="next" data-c="next">${state.turn ? "Next ▶" : "Start ▶"}</button></div>
-        <div class="row"><button data-c="roll-npcs" title="Roll initiative for every NPC without one">Roll NPCs</button><button class="${endArmed ? "armed" : ""}" data-c="end">${endArmed ? "Sure?" : "End"}</button></div>
-      </div>`
-    : state.turn
-      ? `<div class="round-pill">Round ${state.round || 1}</div>`
-      : "";
-  strip.innerHTML = `<div class="chips">${list.map(chip).join("")}</div>${ctl}`;
-  const input = strip.querySelector<HTMLInputElement>(".init-in");
-  if (input) {
-    input.focus();
-    input.select();
-    const save = () => {
-      const v = input.value.trim();
-      const id = editing!;
-      editing = undefined;
-      if (v !== "" && Number.isFinite(Number(v))) setInit(id, Math.round(Number(v)));
-      render();
-    };
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") save();
-      if (e.key === "Escape") {
-        editing = undefined;
-        render();
-      }
-    });
-    input.addEventListener("blur", save);
-  }
-  // the turn chip always in view
+  const arrows = gm && list.length;
+  const round = state.turn ? `<div class="round-box">Round ${state.round || 1}</div>` : gm && list.length ? `<div class="round-box idle">Press ▶ to start</div>` : "";
+  strip.innerHTML = `<div class="line">
+      ${arrows ? `<button class="arrow" data-c="prev" title="Back a turn">‹</button>` : ""}
+      <div class="chips">${list.map(chip).join("")}</div>
+      ${arrows ? `<button class="arrow next" data-c="next" title="${state.turn ? "Next turn" : "Start combat"}">›</button>` : ""}
+    </div>${round}`;
   strip.querySelector(".chip.turn")?.scrollIntoView({ block: "nearest", inline: "center" });
   reportWidth(list.length);
 }
+
+// Names that fit the shield: the full name if it fits; otherwise a named character's first
+// name, or for numbered creatures ("Rot Skulker 4") their initials and number ("RS 4").
+const measure = document.createElement("canvas").getContext("2d")!;
+const NAME_FONT = '700 15px "Crimson Pro", Georgia, serif';
+const NAME_W = 82;
+function fitName(full: string): string {
+  measure.font = NAME_FONT;
+  const fits = (s: string) => measure.measureText(s).width <= NAME_W;
+  if (fits(full)) return full;
+  const numbered = full.match(/^(.*?)\s*(\d+)$/);
+  if (numbered) {
+    const initials = numbered[1].split(/\s+/).filter(Boolean).map((w) => w[0].toUpperCase()).join("");
+    return `${initials} ${numbered[2]}`;
+  }
+  const first = full.split(/\s+/)[0];
+  return fits(first) ? first : first;
+}
+document.fonts?.ready.then(() => render());
 
 // the background sizes the popover to fit
 let lastCount = -1;
@@ -111,124 +94,14 @@ function reportWidth(n: number) {
   OBR.broadcast.sendMessage("com.abelon.combat/strip-size", { count: n }, { destination: "LOCAL" });
 }
 
-// --- GM: initiative --------------------------------------------------------------------
-let bestiary: BestiaryEntry[] | undefined;
-let assignments: Assignments = {};
-async function loadBooks() {
-  if (bestiary) return;
-  const token = getGitHubToken();
-  [bestiary, assignments] = await Promise.all([loadBestiary(token).catch(() => []), loadAssignments(token).catch(() => ({}))]);
-}
-const norm = (s: string) => s.trim().toLowerCase();
-function entryFor(u: Unit): BestiaryEntry | undefined {
-  const chosen = assignments[u.id];
-  if (chosen) {
-    const e = bestiary?.find((b) => b.id === chosen);
-    if (e) return e;
-  }
-  const byName = new Map((bestiary ?? []).map((e) => [norm(e.name), e]));
-  for (const n of [u.realName, u.name]) {
-    if (!n) continue;
-    const hit = byName.get(norm(n)) ?? byName.get(norm(n.replace(/\s*\d+$/, "")));
-    if (hit) return hit;
-  }
-  return undefined;
-}
-async function initBonus(u: Unit): Promise<number> {
-  const item = items.find((i) => i.id === u.id);
-  const own = Number(item?.metadata["com.battle-system.forge/Z018"]);
-  if (Number.isFinite(own) && own > 0) return Math.floor((own - 10) / 2);
-  await loadBooks();
-  const dex = Number((entryFor(u)?.forge as Record<string, unknown> | undefined)?.["com.battle-system.forge/Z018"]);
-  return Number.isFinite(dex) && dex > 0 ? Math.floor((dex - 10) / 2) : 0;
-}
-const d20 = () => {
-  const b = new Uint32Array(1);
-  crypto.getRandomValues(b);
-  return (b[0] % 20) + 1;
-};
-const signed = (n: number) => (n === 0 ? "" : n > 0 ? ` + ${n}` : ` − ${-n}`);
-
-async function rollInit(list: Unit[]) {
-  if (!list.length) return;
-  const rolls = await Promise.all(list.map(async (u) => ({ u, d: d20(), mod: await initBonus(u) })));
-  await OBR.scene.items.updateItems(
-    rolls.map((r) => r.u.id),
-    (its) => {
-      for (const it of its) {
-        const r = rolls.find((x) => x.u.id === it.id)!;
-        it.metadata["com.battle-system.forge/init"] = String(r.d + r.mod);
-      }
-    },
-  );
-  // visible dice: tokens the players can see roll for the table, hidden ones for the GM only
-  for (const [group, destination] of [
-    [rolls.filter((r) => r.u.visible), "ALL"],
-    [rolls.filter((r) => !r.u.visible), "LOCAL"],
-  ] as const) {
-    if (!group.length) continue;
-    const one = group.length === 1 ? group[0] : undefined;
-    const roll: ShownRoll = {
-      id: crypto.randomUUID(),
-      who: one ? one.u.name : "Initiative",
-      action: one ? "Initiative" : "",
-      dice: group.slice(0, 12).map((r) => ({ sides: 20, value: r.d, tint: "brass" })),
-      mod: one?.mod,
-      results: group.map((r) => ({ value: r.d + r.mod, label: one ? "initiative" : r.u.name })),
-      detail: group.map((r) => `${group.length > 1 ? `${r.u.name}: ` : ""}d20 ${r.d}${signed(r.mod)}`).join(" · "),
-      private: destination === "LOCAL",
-    };
-    await OBR.broadcast.sendMessage(DICE_CHANNEL, roll, { destination });
-  }
-}
-
 strip.addEventListener("click", async (e) => {
   if (!gm) return;
   const t = e.target as HTMLElement;
   const c = t.closest<HTMLElement>("[data-c]")?.dataset.c;
   if (c === "next") return step(1);
   if (c === "prev") return step(-1);
-  if (c === "roll-npcs") return rollInit(units(items, party).filter((u) => !u.party && u.init === undefined));
-  if (c === "end") {
-    if (!endArmed) {
-      endArmed = true;
-      render();
-      setTimeout(() => {
-        endArmed = false;
-        render();
-      }, 3000);
-      return;
-    }
-    endArmed = false;
-    return endCombat();
-  }
   const id = t.closest<HTMLElement>(".chip")?.dataset.id;
-  if (!id || t.closest(".init-in")) return;
-  const u = units(items, party).find((x) => x.id === id);
-  if (!u) return;
-  const m = t.closest<HTMLElement>("[data-m]")?.dataset.m;
-  if (m) {
-    menuFor = undefined;
-    if (m === "roll") await rollInit([u]);
-    if (m === "set") editing = u.id;
-    if (m === "select") await OBR.player.select([u.id]);
-    if (m === "remove") await removeFromCombat([u.id]);
-    return render();
-  }
-  if (menuFor === id) return;
-  if (u.party) editing = u.id;
-  else if (u.init === undefined) await rollInit([u]);
-  else await OBR.player.select([u.id]);
-  render();
-});
-strip.addEventListener("contextmenu", (e) => {
-  if (!gm) return;
-  const id = (e.target as HTMLElement).closest<HTMLElement>(".chip")?.dataset.id;
-  if (!id) return;
-  e.preventDefault();
-  menuFor = menuFor === id ? undefined : id;
-  editing = undefined;
-  render();
+  if (id) await OBR.player.select([id]);
 });
 
 OBR.onReady(async () => {
@@ -242,14 +115,14 @@ OBR.onReady(async () => {
   await refresh();
   OBR.scene.items.onChange((its) => {
     items = its;
-    if (!editing) render();
+    render();
   });
   OBR.scene.onMetadataChange(async (m) => {
     state = (m[COMBAT_KEY] as CombatState | undefined) ?? { round: 0 };
     party = await partyIds();
-    if (!editing) render();
+    render();
   });
   window.addEventListener("storage", (e) => {
-    if (e.key === GM_STATUS_KEY && !editing) render();
+    if (e.key === GM_STATUS_KEY) render();
   });
 });

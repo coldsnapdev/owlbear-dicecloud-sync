@@ -11,7 +11,13 @@
       * { box-sizing: border-box; }
       html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; color-scheme: normal; }
       body { font: 14px/1.2 "Crimson Pro", Georgia, serif; color: #efe3c8; }
-      #strip { display: flex; align-items: flex-start; justify-content: center; gap: 8px; padding: 2px 6px 0; }
+      #strip { display: flex; flex-direction: column; align-items: center; padding: 2px 6px 0; }
+      .line { display: flex; align-items: flex-start; gap: 4px; max-width: 100%; }
+      .arrow { flex: none; align-self: center; margin-top: -14px; width: 26px; height: 46px; border-radius: 8px; border: 1px solid rgba(201,162,94,.5); background: rgba(22,17,12,.85); color: #e2c27f; font: 700 26px/1 Cinzel, serif; padding: 0 0 4px; cursor: pointer; box-shadow: 0 3px 8px rgba(0,0,0,.4); }
+      .arrow:hover { background: rgba(201,162,94,.28); color: #fff4dc; }
+      .arrow.next { border-color: #f0c869; color: #f0c869; }
+      .round-box { margin-top: -2px; font: 700 10px/1 Cinzel, serif; letter-spacing: .12em; text-transform: uppercase; color: #e2c27f; padding: 4px 9px; border-radius: 6px; background: rgba(22,17,12,.88); border: 1px solid rgba(201,162,94,.4); box-shadow: 0 2px 6px rgba(0,0,0,.4); }
+      .round-box.idle { color: #a8967a; letter-spacing: .06em; }
       .chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 4px 4px 6px; }
       .chips::-webkit-scrollbar { display: none; }
 
@@ -43,9 +49,9 @@
       .init.none { background: rgba(255,255,255,.12); color: #c9b48a; }
       .init.editing { padding: 0; background: none; }
       .init input { width: 40px; height: 18px; border: 0; border-radius: 6px; padding: 0; font: 700 12px Cinzel, serif; text-align: center; background: #fff4dc; color: #1b140c; outline: 2px solid #f0c869; }
-      .name { width: 84px; margin-top: 3px; text-align: center; font: 600 12px/1.1 "Crimson Pro", serif; color: #f2e6cb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0,0,0,.7); }
+      .name { width: 86px; margin-top: 2px; text-align: center; font: 700 15px/1.1 "Crimson Pro", Georgia, serif; color: #f2e6cb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0,0,0,.7); }
 
-      .stats { display: flex; justify-content: center; gap: 4px; margin-top: 5px; width: 84px; }
+      .stats { display: flex; justify-content: center; gap: 4px; margin-top: 3px; width: 84px; }
       .stat { flex: 1; display: flex; flex-direction: column; align-items: center; }
       .stat small { font: 600 7.5px/1 Cinzel, serif; letter-spacing: .14em; color: #a8967a; }
       .stat span { margin-top: 1px; font: 700 21px/1 Cinzel, serif; color: #fff4dc; text-shadow: 0 1px 3px rgba(0,0,0,.6); }

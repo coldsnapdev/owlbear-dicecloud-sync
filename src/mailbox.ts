@@ -33,6 +33,10 @@ export interface RosterEntry {
   hp?: number;
   maxHp?: number;
   tempHp?: number;
+  hasInit?: boolean;
+  visible?: boolean;
+  dex?: number;
+  sheet?: boolean;
 }
 
 export interface RosterFile {

@@ -103,7 +103,16 @@ export interface HpMessage {
   /** skip DiceCloud and change Forge only (after a DiceCloud failure) */
   forgeOnly?: boolean;
 }
-export type LiveMessage = PanelCommand | StatusesMessage | TargetsMessage | RosterRequest | HpMessage;
+/** Combat controls from the panel: set initiatives, move the turn, end the fight. */
+export interface CombatMessage {
+  kind: "combat";
+  id: string;
+  at: string;
+  op: "init" | "next" | "prev" | "end";
+  /** op "init": itemId -> initiative (null clears it) */
+  values?: Record<string, number | null>;
+}
+export type LiveMessage = PanelCommand | StatusesMessage | TargetsMessage | RosterRequest | HpMessage | CombatMessage;
 export interface HpResult {
   kind: "hp-result";
   ref: string; // the HpMessage id
@@ -127,12 +136,18 @@ export interface LiveCombatant {
   tempHp?: number;
   /** linked to a DiceCloud sheet (damage goes to the sheet) */
   sheet?: boolean;
+  /** initiative has been rolled or entered (else `initiative` is just 0) */
+  hasInit?: boolean;
+  /** players can see this token */
+  visible?: boolean;
+  /** Dexterity score stored on the token, if any */
+  dex?: number;
   /** from the sheet: damage type -> 0 / 0.5 / 2 */
   multipliers?: Record<string, number>;
 }
 /** Owlbear → panel, over the direct link. */
 export type OwlbearMessage =
-  | { kind: "roster"; combatants: LiveCombatant[]; forgeInfo?: string; turn?: string }
+  | { kind: "roster"; combatants: LiveCombatant[]; forgeInfo?: string; turn?: string; round?: number }
   | { kind: "selection"; ids: string[] }
   | HpResult;
 
