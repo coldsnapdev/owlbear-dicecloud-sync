@@ -4,9 +4,10 @@
 //  - HP bars under tokens (drawn by the GM's client, seen by everyone)
 //  - mirroring statuses into the combat state so players' strips can show them
 import OBR, { buildShape, type Item } from "@owlbear-rodeo/sdk";
-import { addToCombat, COMBAT_KEY, getState, inCombat, removeFromCombat, type CombatState, type PublicStatus } from "./combat";
+import { addToCombat, applyStatBlock, COMBAT_KEY, partyIds, getState, inCombat, removeFromCombat, type CombatState, type PublicStatus } from "./combat";
 import { FORGE_KEYS } from "./forge";
 import { GM_STATUS_KEY } from "./stripKeys";
+import { getGitHubToken, loadAssignments, loadBestiary, type Assignments, type BestiaryEntry } from "./mailbox";
 
 const STRIP_ID = "com.abelon.combat/strip";
 const CHIP_W = 104; // shield 96 + gap 8
@@ -61,13 +62,39 @@ function contextMenus() {
   OBR.contextMenu.create({
     id: "com.abelon.combat/add",
     icons: [{ icon, label: "Add to combat", filter: { roles: ["GM"], every: [{ key: ["metadata", FORGE_KEYS.onList], value: undefined }] } }],
-    onClick: (ctx) => addToCombat(ctx.items.map((i) => i.id)),
+    onClick: async (ctx) => {
+      await addToCombat(ctx.items.map((i) => i.id));
+      await fillFromBestiary(ctx.items).catch((err) => console.warn("[abelon] couldn't fill stats from the bestiary", err));
+    },
   });
   OBR.contextMenu.create({
     id: "com.abelon.combat/remove",
     icons: [{ icon, label: "Remove from combat", filter: { roles: ["GM"], every: [{ key: ["metadata", FORGE_KEYS.onList], value: undefined, operator: "!=" }] } }],
     onClick: (ctx) => removeFromCombat(ctx.items.map((i) => i.id)),
   });
+}
+
+// Without Forge nothing gives a freshly placed NPC its stats, so joining combat does: any
+// token with no max HP that matches a bestiary entry (the panel's chosen entry, else by its
+// real or shown name, with or without a trailing number) gets that stat block at full HP.
+const norm = (s: string) => s.trim().toLowerCase();
+async function fillFromBestiary(items: Item[]) {
+  const bare = items.filter((i) => !((num(i.metadata[FORGE_KEYS.maxHP]) ?? 0) > 0));
+  if (!bare.length) return;
+  const token = getGitHubToken();
+  const [bestiary, assignments, linked] = await Promise.all([loadBestiary(token), loadAssignments(token).catch(() => ({}) as Assignments), partyIds()]);
+  const byName = new Map(bestiary.map((e) => [norm(e.name), e]));
+  for (const it of bare) {
+    if (linked.has(it.id)) continue; // party: their sheet fills these
+    const chosen = assignments[it.id] && bestiary.find((e) => e.id === assignments[it.id]);
+    const real = (it.metadata["com.abelon.namer/data"] as { realName?: string } | undefined)?.realName;
+    let entry: BestiaryEntry | undefined = chosen || undefined;
+    for (const n of [real, it.name]) {
+      if (entry || !n) continue;
+      entry = byName.get(norm(n)) ?? byName.get(norm(n.replace(/\s*\d+$/, "")));
+    }
+    if (entry) await applyStatBlock(it.id, entry.forge as Record<string, unknown>);
+  }
 }
 
 // --- HP bars ------------------------------------------------------------------------------

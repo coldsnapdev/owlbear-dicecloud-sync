@@ -240,7 +240,9 @@ async function renderMappings() {
     return;
   }
 
-  const allForgeItems = items.filter((item: Item) => isForgeUnit(item.metadata));
+  // tokens worth linking: anything Forge-style stats live on, or any character token (with
+  // Forge switched off, a new character has no stats until it's linked)
+  const allForgeItems = items.filter((item: Item) => isForgeUnit(item.metadata) || (item.type === "IMAGE" && item.layer === "CHARACTER"));
   const visibleForgeItems = allForgeItems.filter((item) => !isNameIgnored(links, item.name));
   const ignoredLinks = links.filter((l) => l.ignored);
 
@@ -248,12 +250,12 @@ async function renderMappings() {
   renderDebugList(items, allForgeItems);
 
   if (allForgeItems.length === 0) {
-    mappingList.innerHTML = `<p class="hint">No Forge units in this scene.</p>`;
+    mappingList.innerHTML = `<p class="hint">No character tokens in this scene.</p>`;
     return;
   }
 
   if (visibleForgeItems.length === 0) {
-    mappingList.innerHTML = `<p class="hint">All Forge units here are skipped.</p>`;
+    mappingList.innerHTML = `<p class="hint">All character tokens here are skipped.</p>`;
     return;
   }
 

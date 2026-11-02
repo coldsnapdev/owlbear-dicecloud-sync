@@ -139,3 +139,21 @@ export async function endCombat() {
   if (items.length) await removeFromCombat(items.map((i) => i.id));
   await patchState({ turn: undefined, round: 0 });
 }
+
+/** Write a bestiary entry's Forge stats onto a token, at full HP; its name, initiative and place in combat are kept. */
+export async function applyStatBlock(itemId: string, forge: Record<string, unknown>) {
+  const keep = new Set([FORGE_KEYS.name, FORGE_KEYS.init, FORGE_KEYS.onList] as string[]);
+  const stringy = new Set(["Z005", "Z006", "Z007", "Z042"]);
+  await OBR.scene.items.updateItems([itemId], (items) => {
+    for (const item of items) {
+      for (const [k, v] of Object.entries(forge)) {
+        if (!k.startsWith("com.battle-system.forge/") || keep.has(k)) continue;
+        const short = k.split("/")[1];
+        item.metadata[k] = stringy.has(short) && v !== "" && v != null ? String(v) : v;
+      }
+      const max = forge["com.battle-system.forge/Z006"];
+      if (max !== undefined) item.metadata[FORGE_KEYS.currentHP] = String(max); // full HP
+      item.metadata[FORGE_KEYS.tempHP] = "0";
+    }
+  });
+}

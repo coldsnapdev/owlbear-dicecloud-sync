@@ -1,4 +1,4 @@
-import { getState } from "./combat";
+import { applyStatBlock, getState } from "./combat";
 import { mirrorStatuses, startCombatHost } from "./combatHost";
 import { BUILD } from "./build";
 import { LINK_STATUS_KEY, LIVE_STATUS_KEY, RELAY_STATUS_KEY, listenLocal, type HpMessage, type HpResult, type LinkEnvelope, type LiveCombatant, type LiveMessage, type OwlbearMessage, liveCode, liveTopic, subscribeLive, type LiveSubscription } from "./live";
@@ -178,20 +178,7 @@ async function runCommand(cmd: PanelCommand) {
     log(`Apply stat block: token ${cmd.itemId} isn't in this scene.`);
     return;
   }
-  const keep = new Set(["com.battle-system.forge/name", "com.battle-system.forge/init", "com.battle-system.forge/on-list"]);
-  const stringy = new Set(["Z005", "Z006", "Z007", "Z042"]);
-  await OBR.scene.items.updateItems([cmd.itemId], (items) => {
-    for (const item of items) {
-      for (const [k, v] of Object.entries(cmd.forge)) {
-        if (!k.startsWith("com.battle-system.forge/") || keep.has(k)) continue;
-        const short = k.split("/")[1];
-        item.metadata[k] = stringy.has(short) && v !== "" && v != null ? String(v) : v;
-      }
-      const max = cmd.forge["com.battle-system.forge/Z006"];
-      if (max !== undefined) item.metadata["com.battle-system.forge/Z005"] = String(max); // full HP
-      item.metadata["com.battle-system.forge/Z042"] = "0"; // no temp HP
-    }
-  });
+  await applyStatBlock(cmd.itemId, cmd.forge);
   log(`Applied ${cmd.entryName} to token ${cmd.itemId}.`);
 }
 
