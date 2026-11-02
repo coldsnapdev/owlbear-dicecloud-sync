@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-11-02T11:30:25.189Z",
+ "savedAt": "2026-11-02T11:32:09.642Z",
  "combatants": [
   {
    "itemId": "f1bdb335-d08e-4bfc-9a71-247a12609177",
@@ -30,7 +30,7 @@
   {
    "itemId": "4de430d6-8454-446f-84b4-f0b04b8a178b",
    "name": "Tenok",
-   "initiative": 5,
+   "initiative": 6,
    "ac": 16
   },
   {
