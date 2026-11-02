@@ -1,10 +1,16 @@
 {
- "savedAt": "2026-11-02T22:19:33.174Z",
+ "savedAt": "2026-11-02T22:55:22.802Z",
  "tokens": {
   "8367561a-6dcc-4e83-a0ca-f90c3a66c604": [
    {
     "key": "custom:dead",
     "label": "Dead"
+   }
+  ],
+  "4e4e6e1e-00c8-4171-81f2-05103924cd1b": [
+   {
+    "key": "prone",
+    "label": "Prone"
    }
   ]
  }
