@@ -33,9 +33,10 @@
       .rim, .face { position: absolute; inset: 0; }
       .rim {
         clip-path: path("M0,9 Q0,0 9,0 H87 Q96,0 96,9 V56 C96,81 72,97 48,108 C24,97 0,81 0,56 Z");
-        background: linear-gradient(160deg, #e2c27f, #9c7838 45%, #6d5126);
+        background: linear-gradient(160deg, #ec9f6c, #b8582a 45%, #7a3418); /* unaligned NPCs: burnt orange */
       }
-      .party .rim { background: linear-gradient(160deg, #9fdcc8, #4f9a84 45%, #2f6556); }
+      .party .rim { background: linear-gradient(160deg, #a8e6a0, #4f9a5c 45%, #2c6136); } /* the party: green */
+      .ally .rim { background: linear-gradient(160deg, #9fe3e6, #2f9ca3 45%, #1b5c63); } /* allied NPCs: teal */
       .face {
         clip-path: path("M2.5,10 Q2.5,2.5 10,2.5 H86 Q93.5,2.5 93.5,10 V56 C93.5,79 71,94 48,104.5 C25,94 2.5,79 2.5,56 Z");
         background:
@@ -48,7 +49,9 @@
       .chip.hidden { opacity: .5; }
 
       .init { min-width: 22px; height: 16px; padding: 0 5px; border-radius: 8px; display: grid; place-items: center; font: 700 10.5px/1 Cinzel, serif; color: #1b140c; background: #c9a25e; box-shadow: inset 0 -1px 0 rgba(0,0,0,.25); }
-      .party .init { background: #6cc0a6; }
+      .init { background: #e08a5a; }
+      .party .init { background: #76c47c; }
+      .ally .init { background: #5cc2c8; }
       .turn .init { background: #f0c869; }
       .init.none { background: rgba(255,255,255,.12); color: #c9b48a; }
       .init.editing { padding: 0; background: none; }

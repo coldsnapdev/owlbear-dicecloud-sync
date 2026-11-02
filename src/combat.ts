@@ -9,6 +9,8 @@ import OBR, { type Item } from "@owlbear-rodeo/sdk";
 import { FORGE_KEYS } from "./forge";
 
 export const COMBAT_KEY = "com.abelon.combat/state";
+/** on a token: this NPC fights alongside the party (teal on the strip, not burnt orange) */
+export const ALLY_KEY = "com.abelon.combat/ally";
 const NAMER_KEY = "com.abelon.namer/data";
 const MAPPING_KEY = "com.abelon.dicecloud-sync/mappings";
 
@@ -37,6 +39,8 @@ export interface Unit {
   visible: boolean;
   /** linked to a DiceCloud sheet: a party member */
   party: boolean;
+  /** an NPC on the party's side */
+  ally: boolean;
   image?: string;
 }
 
@@ -66,6 +70,7 @@ export function units(items: Item[], partyIds: Set<string>): Unit[] {
         ac: num(m[FORGE_KEYS.ac]),
         visible: item.visible,
         party: partyIds.has(item.id),
+        ally: !!m[ALLY_KEY],
         image: (item as Item & { image?: { url?: string } }).image?.url,
       };
     })

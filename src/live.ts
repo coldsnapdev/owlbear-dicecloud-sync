@@ -108,8 +108,8 @@ export interface CombatMessage {
   kind: "combat";
   id: string;
   at: string;
-  op: "init" | "next" | "prev" | "end";
-  /** op "init": itemId -> initiative (null clears it) */
+  op: "init" | "next" | "prev" | "end" | "ally";
+  /** op "init": itemId -> initiative (null clears it); op "ally": itemId -> 1 (allied) or null */
   values?: Record<string, number | null>;
 }
 export type LiveMessage = PanelCommand | StatusesMessage | TargetsMessage | RosterRequest | HpMessage | CombatMessage;
@@ -142,6 +142,8 @@ export interface LiveCombatant {
   visible?: boolean;
   /** Dexterity score stored on the token, if any */
   dex?: number;
+  /** an NPC on the party's side */
+  ally?: boolean;
   /** from the sheet: damage type -> 0 / 0.5 / 2 */
   multipliers?: Record<string, number>;
 }

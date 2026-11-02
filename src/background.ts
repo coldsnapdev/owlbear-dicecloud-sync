@@ -1,4 +1,4 @@
-import { applyStatBlock, endCombat, getState, step } from "./combat";
+import { ALLY_KEY, applyStatBlock, endCombat, getState, step } from "./combat";
 import { mirrorStatuses, startCombatHost } from "./combatHost";
 import { BUILD } from "./build";
 import { LINK_STATUS_KEY, LIVE_STATUS_KEY, RELAY_STATUS_KEY, listenLocal, type HpMessage, type HpResult, type LinkEnvelope, type LiveCombatant, type LiveMessage, type OwlbearMessage, liveCode, liveTopic, subscribeLive, type LiveSubscription } from "./live";
@@ -241,6 +241,12 @@ function handleLiveMessage(msg: LiveMessage) {
       msg.op === "next" ? step(1)
       : msg.op === "prev" ? step(-1)
       : msg.op === "end" ? endCombat()
+      : msg.op === "ally" ? OBR.scene.items.updateItems(Object.keys(msg.values ?? {}), (its) => {
+          for (const it of its) {
+            if (msg.values![it.id]) it.metadata[ALLY_KEY] = true;
+            else delete it.metadata[ALLY_KEY];
+          }
+        })
       : OBR.scene.items.updateItems(Object.keys(msg.values ?? {}), (its) => {
           for (const it of its) {
             const v = msg.values![it.id];
@@ -381,7 +387,7 @@ const extra = (it?: Item) => {
   if (!it) return {};
   const init = it.metadata["com.battle-system.forge/init"];
   const dex = Number(it.metadata["com.battle-system.forge/Z018"]);
-  return { hasInit: init !== undefined && init !== "" || undefined, visible: it.visible, dex: Number.isFinite(dex) && dex > 0 ? dex : undefined };
+  return { hasInit: init !== undefined && init !== "" || undefined, visible: it.visible, dex: Number.isFinite(dex) && dex > 0 ? dex : undefined, ally: !!it.metadata[ALLY_KEY] || undefined };
 };
 async function pushRoster(force = false) {
   if (!panelWindow || !(await OBR.scene.isReady())) return;

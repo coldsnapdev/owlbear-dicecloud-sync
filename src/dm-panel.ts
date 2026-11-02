@@ -140,7 +140,7 @@ let round = 0;
 let autoOpened: string | undefined;
 let scrollToTurn = false;
 let lastLiveFp = "";
-const asEntry = (c: LiveCombatant): RosterEntry => ({ itemId: c.itemId, name: c.name, realName: c.realName, initiative: c.initiative, ac: c.ac, hp: c.hp, maxHp: c.maxHp, tempHp: c.tempHp, hasInit: c.hasInit, visible: c.visible, dex: c.dex, sheet: c.sheet });
+const asEntry = (c: LiveCombatant): RosterEntry => ({ itemId: c.itemId, name: c.name, realName: c.realName, initiative: c.initiative, ac: c.ac, hp: c.hp, maxHp: c.maxHp, tempHp: c.tempHp, hasInit: c.hasInit, visible: c.visible, dex: c.dex, sheet: c.sheet, ally: c.ally });
 onOwlbear((m) => {
   if (m.kind === "roster") {
     // Forge's turn moved on: highlight the new combatant and open their card (closing the
@@ -913,6 +913,7 @@ function statBlock(e: BestiaryEntry, c: RosterEntry): string {
     <div class="sheet">
       <div class="vitals">
         <span><small>CR</small>${crText(e.cr)}</span><span><small>AC</small>${f[F + "Z007"] ?? "–"}</span><span><small>HP</small>${f[F + "Z005"] ?? "–"}</span><span><small>Speed</small>${f[F + "Z008"] ?? "–"} ft</span>
+        ${c.sheet ? "" : `<label class="ally-check" title="Fights on the party's side: teal on the combat strip instead of orange"><input type="checkbox" class="ally-box" data-id="${escapeHtml(c.itemId)}" ${c.ally ? "checked" : ""} /> Party aligned</label>`}
         <button type="button" class="apply-btn ${applyArmed === c.itemId ? "armed" : ""}" data-id="${escapeHtml(c.itemId)}" data-entry="${escapeHtml(e.id)}" title="Write this stat block's HP (full), max HP, AC and the rest onto the token in Owlbear">${applyArmed === c.itemId ? "Click again to apply" : "Apply to token"}</button>
       </div>
       ${defences(f)}
@@ -1372,7 +1373,7 @@ function render() {
         ? `<input class="pc-init-in" type="number" data-init-in="${id}" value="${c.hasInit === false ? "" : c.initiative}" />`
         : `<span class="pc-init ${c.hasInit === false ? "none" : ""}" data-init="${id}" title="Click to enter initiative">${c.hasInit === false ? "–" : c.initiative}</span>`;
       const roll = entry && !c.sheet ? `<span class="pc-roll" data-roll="${id}" title="Roll initiative">⚄</span>` : "";
-      return `<div role="button" tabindex="0" class="pc-pill ${open.has(c.itemId) ? "on" : ""} ${entry ? "npc" : "party"} ${tgt ? "targeted" : ""} ${c.itemId === turnId ? "turn" : ""} ${c.visible === false ? "hid" : ""}" data-id="${id}" title="${escapeHtml((c.realName || c.name) + alias)}">${roll}<span class="tgt" data-tgt="${id}" title="${tgt ? "Untarget" : "Target"}">◎</span><span class="pc-name">${escapeHtml(c.realName || c.name)}</span>${init}${hpBar(c)}${headChips(c.itemId)}</div>`;
+      return `<div role="button" tabindex="0" class="pc-pill ${open.has(c.itemId) ? "on" : ""} ${!entry || c.sheet ? "party" : c.ally ? "ally" : "npc"} ${tgt ? "targeted" : ""} ${c.itemId === turnId ? "turn" : ""} ${c.visible === false ? "hid" : ""}" data-id="${id}" title="${escapeHtml((c.realName || c.name) + alias)}">${roll}<span class="tgt" data-tgt="${id}" title="${tgt ? "Untarget" : "Target"}">◎</span><span class="pc-name">${escapeHtml(c.realName || c.name)}</span>${init}${hpBar(c)}${headChips(c.itemId)}</div>`;
     })
     .join("")}</div>`;
   app.innerHTML = combatBar() + tiles + targetBar() + resolveCard() + roster.combatants.filter((c) => open.has(c.itemId)).map(card).join("");
@@ -1397,6 +1398,14 @@ function render() {
   app.querySelectorAll<HTMLButtonElement>(".tb-x").forEach((b) => b.addEventListener("click", () => setTargets(targets.filter((x) => x !== b.dataset.id))));
   app.querySelector<HTMLButtonElement>(".tb-clear")?.addEventListener("click", () => setTargets([]));
   wireInitiative();
+  app.querySelectorAll<HTMLInputElement>(".ally-box").forEach((box) =>
+    box.addEventListener("change", () => {
+      const c = combatant(box.dataset.id!);
+      if (c) c.ally = box.checked;
+      fastSend({ kind: "combat", id: crypto.randomUUID(), at: new Date().toISOString(), op: "ally", values: { [box.dataset.id!]: box.checked ? 1 : null } });
+      render();
+    }),
+  );
   app.querySelectorAll<HTMLElement>(".pc-pill").forEach((b) =>
     b.addEventListener("click", (e) => {
       if ((e.target as HTMLElement).closest("[data-init], [data-roll], [data-init-in]")) return;

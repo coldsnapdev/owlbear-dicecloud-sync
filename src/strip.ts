@@ -125,7 +125,7 @@ function render() {
       stage.appendChild(el);
       els.set(u.id, el);
     }
-    el.className = `chip ${u.party ? "party" : "npc"} ${isActive ? "turn" : ""} ${u.visible ? "" : "hidden"} ${live && k !== 0 && Math.abs(k) > 1 ? "far" : ""}`;
+    el.className = `chip ${u.party ? "party" : u.ally ? "ally" : "npc"} ${isActive ? "turn" : ""} ${u.visible ? "" : "hidden"} ${live && k !== 0 && Math.abs(k) > 1 ? "far" : ""}`;
     el.title = `${gm && u.realName ? u.realName : u.name}`;
     el.innerHTML = chip(u, label);
     const x = offsetFor(k, live);
@@ -154,7 +154,10 @@ function render() {
     lastSlot.delete(id);
   }
   // arrows sit just outside the outermost shields
-  const outer = n ? Math.max(...[...slots.values()].map((k) => Math.abs(offsetFor(k, live)) + (W * scaleFor(k, live)) / 2)) : 0;
+  // each arrow hugs its own end of the row (the sides aren't always the same length)
+  const ks = [...slots.values()];
+  const leftEdge = n ? Math.min(...ks.map((k) => offsetFor(k, live) - (W * scaleFor(k, live)) / 2)) : 0;
+  const rightEdge = n ? Math.max(...ks.map((k) => offsetFor(k, live) + (W * scaleFor(k, live)) / 2)) : 0;
   let prevBtn = stage.querySelector<HTMLButtonElement>(".arrow.prev");
   let nextBtn = stage.querySelector<HTMLButtonElement>(".arrow.next");
   if (gm && n) {
@@ -165,8 +168,8 @@ function render() {
       nextBtn.dataset.c = "next";
       stage.append(prevBtn, nextBtn);
     }
-    prevBtn.style.transform = `translateX(calc(-50% - ${(outer + 22).toFixed(0)}px))`;
-    nextBtn!.style.transform = `translateX(calc(-50% + ${(outer + 22).toFixed(0)}px))`;
+    prevBtn.style.transform = `translateX(calc(-50% + ${(leftEdge - 20).toFixed(0)}px))`;
+    nextBtn!.style.transform = `translateX(calc(-50% + ${(rightEdge + 20).toFixed(0)}px))`;
     nextBtn!.title = live ? "Next turn" : "Start combat";
   } else {
     prevBtn?.remove();

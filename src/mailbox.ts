@@ -37,6 +37,7 @@ export interface RosterEntry {
   visible?: boolean;
   dex?: number;
   sheet?: boolean;
+  ally?: boolean;
 }
 
 export interface RosterFile {
