@@ -1,4 +1,8 @@
 // The combat strip across the top of everyone's screen: turn order, HP, AC, statuses.
+// It rolls like a carousel: the active combatant sits in the middle, larger, with those who've
+// just acted to the left and those coming up to the right (the extra one on the right when the
+// count is even). Each move of the turn slides every shield one place left; the one falling
+// off the left end fades back in at the far right.
 // Players see public information only (NPC HP as a bar, never numbers or AC; hidden tokens
 // left out). The GM also gets arrows either side to move the turn; clicking a shield selects
 // its token. Initiative is rolled and entered in the DM panel.
@@ -25,7 +29,7 @@ function gmStatuses(): Record<string, { t: string; c: string; dm?: boolean }[]> 
 // Each combatant is a small heraldic shield: initiative in a pip at the top, the name, then
 // HP and AC large. Players see only a bar for enemies. Statuses (and the GM's menu) hang
 // beneath the shield.
-function chip(u: Unit): string {
+function chip(u: Unit, roundLabel?: string): string {
   const turn = state.turn === u.id;
   const showNums = gm || u.party;
   const pct = u.maxHp ? Math.max(0, Math.min(100, ((u.hp ?? 0) / u.maxHp) * 100)) : undefined;
@@ -43,28 +47,143 @@ function chip(u: Unit): string {
   const below = sts.length
         ? `<div class="sts">${sts.map((st) => `<span class="${"dm" in st && st.dm ? "dm" : ""}" style="background:${esc(st.c)}">${esc(st.t)}</span>`).join("")}</div>`
         : "";
-  return `<div class="chip ${u.party ? "party" : "npc"} ${turn ? "turn" : ""} ${u.visible ? "" : "hidden"}" data-id="${esc(u.id)}" title="${esc(name)}${showNums && u.maxHp ? ` · ${u.hp}/${u.maxHp} HP` : ""}">
-    <div class="shield"><div class="rim"></div><div class="face">
+  const label = roundLabel ? `<div class="rnd ${turn ? "now" : ""}">${roundLabel}</div>` : "";
+  return `<div class="shield"><div class="rim"></div><div class="face">
       ${init}
       <div class="name">${esc(fitName(name))}</div>
       ${stats}
     </div></div>
-    ${below}
-  </div>`;
+    ${label}${below}`;
 }
 
+// slot geometry: shields are 96 wide; the active one is scaled up
+const W = 96;
+const GAP = 8;
+const ACTIVE = 1.22;
+const NEAR = 0.97;
+const FAR = 0.9;
+const scaleFor = (k: number, live: boolean) => (!live ? 1 : k === 0 ? ACTIVE : Math.abs(k) === 1 ? NEAR : FAR);
+function offsetFor(k: number, live: boolean): number {
+  if (!live || k === 0) return k * (W + GAP);
+  const sign = Math.sign(k);
+  let x = (W * scaleFor(0, live)) / 2 + GAP + (W * scaleFor(sign, live)) / 2;
+  for (let i = 2; i <= Math.abs(k); i++) x += (W * scaleFor(sign * (i - 1), live)) / 2 + GAP + (W * scaleFor(sign * i, live)) / 2;
+  return sign * x;
+}
+
+const stage = document.createElement("div");
+stage.className = "stage";
+const els = new Map<string, HTMLElement>();
+const lastSlot = new Map<string, number>();
+
 function render() {
-  const list = units(items, party).filter((u) => gm || u.visible);
+  const order = units(items, party);
+  const list = order.filter((u) => gm || u.visible);
   document.body.classList.toggle("gm", gm);
-  const arrows = gm && list.length;
-  const round = state.turn ? `<div class="round-box">Round ${state.round || 1}</div>` : gm && list.length ? `<div class="round-box idle">Press ▶ to start</div>` : "";
-  strip.innerHTML = `<div class="line">
-      ${arrows ? `<button class="arrow" data-c="prev" title="Back a turn">‹</button>` : ""}
-      <div class="chips">${list.map(chip).join("")}</div>
-      ${arrows ? `<button class="arrow next" data-c="next" title="${state.turn ? "Next turn" : "Start combat"}">›</button>` : ""}
-    </div>${round}`;
-  strip.querySelector(".chip.turn")?.scrollIntoView({ block: "nearest", inline: "center" });
-  reportWidth(list.length);
+  const n = list.length;
+  const live = !!state.turn && n > 0;
+  // who's in the middle: the active combatant (for players, if it's hidden from them, the
+  // next one they can see, shown at normal size)
+  let centre = 0;
+  if (live) {
+    const at = order.findIndex((u) => u.id === state.turn);
+    for (let i = 0; i < order.length; i++) {
+      const u = order[(Math.max(0, at) + i) % order.length];
+      const j = list.findIndex((x) => x.id === u.id);
+      if (j >= 0) {
+        centre = j;
+        break;
+      }
+    }
+  }
+  const left = Math.floor((n - 1) / 2);
+  const slots = new Map<string, number>();
+  list.forEach((u, i) => {
+    let k = live ? (i - centre + n) % n : i - (n - 1) / 2;
+    if (live && k > n - 1 - left) k -= n; // the just-been side
+    slots.set(u.id, k);
+  });
+  const first = order.find((u) => gm || u.visible);
+  const round = state.round || 1;
+
+  if (!strip.contains(stage)) {
+    strip.innerHTML = "";
+    strip.appendChild(stage);
+  }
+  const seen = new Set<string>();
+  for (const u of list) {
+    seen.add(u.id);
+    const k = slots.get(u.id)!;
+    const isActive = live && u.id === state.turn;
+    // Round X under the active shield; Round X+1 under the top of the order when it's still to come
+    const label = isActive ? `Round ${round}` : live && first?.id === u.id && k > 0 ? `Round ${round + 1}` : undefined;
+    let el = els.get(u.id);
+    const fresh = !el;
+    if (!el) {
+      el = document.createElement("div");
+      el.dataset.id = u.id;
+      stage.appendChild(el);
+      els.set(u.id, el);
+    }
+    el.className = `chip ${u.party ? "party" : "npc"} ${isActive ? "turn" : ""} ${u.visible ? "" : "hidden"} ${live && k !== 0 && Math.abs(k) > 1 ? "far" : ""}`;
+    el.title = `${gm && u.realName ? u.realName : u.name}`;
+    el.innerHTML = chip(u, label);
+    const x = offsetFor(k, live);
+    const sc = scaleFor(k, live);
+    const prev = lastSlot.get(u.id);
+    const wrapped = prev !== undefined && Math.abs(prev - k) > 1 && live;
+    const place = () => (el!.style.transform = `translateX(calc(-50% + ${x.toFixed(1)}px)) scale(${sc})`);
+    if (fresh || wrapped) {
+      // appear (or re-appear at the other end) without sliding across everyone
+      el.style.transition = "none";
+      el.style.opacity = "0";
+      place();
+      void el.offsetWidth;
+      // fade in once the others have slid along, so it doesn't land on top of them
+      el.style.transition = fresh ? "opacity .4s ease" : "opacity .4s ease .45s";
+      el.style.opacity = "";
+      const target = el;
+      setTimeout(() => (target.style.transition = ""), 900);
+    } else place();
+    lastSlot.set(u.id, k);
+  }
+  for (const [id, el] of els) {
+    if (seen.has(id)) continue;
+    el.remove();
+    els.delete(id);
+    lastSlot.delete(id);
+  }
+  // arrows sit just outside the outermost shields
+  const outer = n ? Math.max(...[...slots.values()].map((k) => Math.abs(offsetFor(k, live)) + (W * scaleFor(k, live)) / 2)) : 0;
+  let prevBtn = stage.querySelector<HTMLButtonElement>(".arrow.prev");
+  let nextBtn = stage.querySelector<HTMLButtonElement>(".arrow.next");
+  if (gm && n) {
+    if (!prevBtn) {
+      prevBtn = Object.assign(document.createElement("button"), { className: "arrow prev", title: "Back a turn", textContent: "‹" });
+      prevBtn.dataset.c = "prev";
+      nextBtn = Object.assign(document.createElement("button"), { className: "arrow next", textContent: "›" });
+      nextBtn.dataset.c = "next";
+      stage.append(prevBtn, nextBtn);
+    }
+    prevBtn.style.transform = `translateX(calc(-50% - ${(outer + 22).toFixed(0)}px))`;
+    nextBtn!.style.transform = `translateX(calc(-50% + ${(outer + 22).toFixed(0)}px))`;
+    nextBtn!.title = live ? "Next turn" : "Start combat";
+  } else {
+    prevBtn?.remove();
+    nextBtn?.remove();
+  }
+  let hint = strip.querySelector<HTMLElement>(".round-box");
+  const hintText = !live && gm && n ? "Press › to start" : "";
+  if (hintText && !hint) {
+    hint = document.createElement("div");
+    hint.className = "round-box idle";
+    strip.appendChild(hint);
+  }
+  if (hint) {
+    if (hintText) hint.textContent = hintText;
+    else hint.remove();
+  }
+  reportWidth(n);
 }
 
 // Names that fit the shield: the full name if it fits; otherwise a named character's first

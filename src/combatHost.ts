@@ -11,7 +11,7 @@ import { getGitHubToken, loadAssignments, loadBestiary, type Assignments, type B
 
 const STRIP_ID = "com.abelon.combat/strip";
 const CHIP_W = 104; // shield 96 + gap 8
-const STRIP_H = 186; // shield, the turn's lift, two rows of statuses, the round box
+const STRIP_H = 190; // the enlarged active shield, its round label and two rows of statuses
 
 // --- The strip popover --------------------------------------------------------------------
 let gm = false;
@@ -20,7 +20,7 @@ let stripWidth = 0;
 let openedAtVw = 0;
 
 function widthFor(n: number, vw: number) {
-  return Math.max(160, Math.min(vw - 140, n * CHIP_W + 24 + (gm ? 64 : 0)));
+  return Math.max(220, Math.min(vw - 100, (n + 1) * CHIP_W + 30 + (gm ? 70 : 0)));
 }
 async function updateStrip() {
   if (!(await OBR.scene.isReady())) return closeStrip();
@@ -227,8 +227,8 @@ async function updateMarker() {
     await clearMarker();
     const halo = buildShape()
       .shapeType("CIRCLE")
-      .width(size * 1.24)
-      .height(size * 1.24)
+      .width(size * 1.06)
+      .height(size * 1.06)
       .position(b.center)
       .fillColor("#f0c869")
       .fillOpacity(0.22)
@@ -243,8 +243,8 @@ async function updateMarker() {
       .build();
     const ring = buildShape()
       .shapeType("CIRCLE")
-      .width(size * 1.13)
-      .height(size * 1.13)
+      .width(size * 0.98)
+      .height(size * 0.98)
       .position(b.center)
       .fillOpacity(0)
       .strokeColor("#f6d98e")
