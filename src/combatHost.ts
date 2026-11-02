@@ -9,8 +9,8 @@ import { FORGE_KEYS } from "./forge";
 import { GM_STATUS_KEY } from "./stripKeys";
 
 const STRIP_ID = "com.abelon.combat/strip";
-const CHIP_W = 130; // chip 124 + gap 6
-const STRIP_H = 118;
+const CHIP_W = 104; // shield 96 + gap 8
+const STRIP_H = 168; // shield, the turn's lift, and two rows of statuses
 
 // --- The strip popover --------------------------------------------------------------------
 let gm = false;
@@ -169,6 +169,89 @@ export async function mirrorStatuses(all: Record<string, { t: string; c: string;
   await OBR.scene.setMetadata({ [COMBAT_KEY]: { ...now, statuses: pub } satisfies CombatState });
 }
 
+// --- Turn marker --------------------------------------------------------------------------
+// A gold halo under the active token, gently breathing, with a dashed ring slowly turning
+// round it. Drawn as local items on every client (nothing synced), so each screen can animate
+// it smoothly; players only get it when they can see that token.
+const TURN_KEY = "com.abelon.combat/turn-marker";
+let marker: { parent: string; halo: string; ring: string; sig: string } | undefined;
+let markerTick: ReturnType<typeof setInterval> | undefined;
+let markerBusy = false;
+async function clearMarker() {
+  clearInterval(markerTick);
+  markerTick = undefined;
+  const mine = (await OBR.scene.local.getItems()).filter((i) => i.metadata[TURN_KEY]).map((i) => i.id);
+  if (mine.length) await OBR.scene.local.deleteItems(mine);
+  marker = undefined;
+}
+async function updateMarker() {
+  if (markerBusy) return;
+  markerBusy = true;
+  try {
+    if (!(await OBR.scene.isReady())) return clearMarker();
+    const st = await getState();
+    const [token] = st.turn ? await OBR.scene.items.getItems([st.turn]) : [];
+    if (!token || !inCombat(token) || (!gm && !token.visible)) return clearMarker();
+    const b = await OBR.scene.items.getItemBounds([token.id]);
+    const dpi = await OBR.scene.grid.getDpi();
+    const size = Math.max(b.width, b.height);
+    const sig = JSON.stringify([token.id, Math.round(b.center.x), Math.round(b.center.y), Math.round(size)]);
+    if (marker?.sig === sig) return;
+    await clearMarker();
+    const halo = buildShape()
+      .shapeType("CIRCLE")
+      .width(size * 1.55)
+      .height(size * 1.55)
+      .position(b.center)
+      .fillColor("#f0c869")
+      .fillOpacity(0.22)
+      .strokeWidth(0)
+      .strokeOpacity(0)
+      .layer("PROP")
+      .attachedTo(token.id)
+      .disableAttachmentBehavior(["ROTATION", "SCALE", "COPY"])
+      .locked(true)
+      .disableHit(true)
+      .metadata({ [TURN_KEY]: true })
+      .build();
+    const ring = buildShape()
+      .shapeType("CIRCLE")
+      .width(size * 1.3)
+      .height(size * 1.3)
+      .position(b.center)
+      .fillOpacity(0)
+      .strokeColor("#f6d98e")
+      .strokeOpacity(0.95)
+      .strokeWidth(Math.max(3, Math.round(dpi * 0.05)))
+      .strokeDash([Math.round(dpi * 0.26), Math.round(dpi * 0.12)])
+      .layer("PROP")
+      .attachedTo(token.id)
+      .disableAttachmentBehavior(["ROTATION", "SCALE", "COPY"])
+      .locked(true)
+      .disableHit(true)
+      .metadata({ [TURN_KEY]: true })
+      .build();
+    await OBR.scene.local.addItems([halo, ring]);
+    marker = { parent: token.id, halo: halo.id, ring: ring.id, sig };
+    const t0 = performance.now();
+    markerTick = setInterval(() => {
+      if (!marker) return;
+      const t = (performance.now() - t0) / 1000;
+      const m = marker;
+      OBR.scene.local
+        .updateItems([m.halo, m.ring], (its) => {
+          for (const it of its) {
+            if (it.id === m.ring) it.rotation = (t * 40) % 360; // one turn every 9 s
+            else (it as Item & { style: { fillOpacity: number } }).style.fillOpacity = 0.16 + 0.14 * (0.5 + 0.5 * Math.sin(t * 2.2));
+          }
+        })
+        .catch(() => {});
+    }, 70);
+  } finally {
+    markerBusy = false;
+  }
+}
+
 // --- Start-up -----------------------------------------------------------------------------
 let started = false;
 export async function startCombatHost() {
@@ -179,6 +262,7 @@ export async function startCombatHost() {
   const onItems = () => {
     updateStrip().catch(() => {});
     scheduleBars();
+    updateMarker().catch(() => {});
   };
   let listening = false;
   const hook = async () => {
@@ -186,11 +270,12 @@ export async function startCombatHost() {
     if (!listening) {
       listening = true;
       OBR.scene.items.onChange(onItems);
+      OBR.scene.onMetadataChange(() => updateMarker().catch(() => {}));
     }
     onItems();
   };
   await hook();
-  OBR.scene.onReadyChange((ready) => (ready ? hook() : closeStrip()));
+  OBR.scene.onReadyChange((ready) => (ready ? hook() : (closeStrip(), clearMarker())));
   // the viewport can change size; recentre the strip when it does
   setInterval(() => {
     if (stripOpen) updateStrip().catch(() => {});

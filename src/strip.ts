@@ -28,6 +28,9 @@ function gmStatuses(): Record<string, { t: string; c: string; dm?: boolean }[]> 
   }
 }
 
+// Each combatant is a small heraldic shield: initiative in a pip at the top, the name, then
+// HP and AC large. Players see only a bar for enemies. Statuses (and the GM's menu) hang
+// beneath the shield.
 function chip(u: Unit): string {
   const turn = state.turn === u.id;
   const showNums = gm || u.party;
@@ -37,16 +40,29 @@ function chip(u: Unit): string {
   const name = gm && u.realName && u.realName !== u.name ? u.realName : u.name;
   const init =
     editing === u.id
-      ? `<span class="init"><input type="number" class="init-in" value="${u.init ?? ""}" /></span>`
+      ? `<span class="init editing"><input type="number" class="init-in" value="${u.init ?? ""}" /></span>`
       : `<span class="init ${u.init === undefined ? "none" : ""}">${u.init ?? "–"}</span>`;
-  const body =
+  const bar = pct !== undefined ? `<div class="hp ${tone}"><i style="width:${pct.toFixed(0)}%"></i>${u.tempHp ? "<b></b>" : ""}</div>` : "";
+  const stats = showNums
+    ? `<div class="stats">
+        <div class="stat hpv ${tone}"><small>HP</small><span>${u.hp ?? "–"}${u.tempHp ? `<em>+${u.tempHp}</em>` : ""}</span></div>
+        <div class="stat acv"><small>AC</small><span>${u.ac ?? "–"}</span></div>
+      </div>${bar}`
+    : `<div class="stats npc-only">${bar || ""}</div>`;
+  const below =
     menuFor === u.id
-      ? `<div class="menu">${u.party ? "" : `<button data-m="roll">Roll</button>`}<button data-m="set">Set</button><button data-m="select">Select</button><button data-m="remove">Remove</button><button class="x" data-m="close">Close</button></div>`
-      : `${pct !== undefined ? `<div class="hp ${tone}"><i style="width:${pct.toFixed(0)}%"></i>${u.tempHp ? "<b></b>" : ""}</div>` : ""}
-         <div class="meta">${showNums && u.hp !== undefined ? `<span>${u.hp}${u.maxHp !== undefined ? `/${u.maxHp}` : ""}${u.tempHp ? ` <span class="t">+${u.tempHp}</span>` : ""}</span>` : "<span></span>"}${showNums && u.ac !== undefined ? `<span>AC ${u.ac}</span>` : ""}</div>
-         ${sts.length ? `<div class="sts">${sts.map((s) => `<span class="${"dm" in s && s.dm ? "dm" : ""}" style="background:${esc(s.c)}">${esc(s.t)}</span>`).join("")}</div>` : ""}`;
-  return `<div class="chip ${u.party ? "party" : "npc"} ${turn ? "turn" : ""} ${u.visible ? "" : "hidden"}" data-id="${esc(u.id)}" title="${esc(name)}">
-    <div class="top">${init}<span class="name">${esc(name)}</span></div>${body}</div>`;
+      ? `<div class="menu">${u.party ? "" : `<button data-m="roll">Roll</button>`}<button data-m="set">Set</button><button data-m="select">Select</button><button data-m="remove">Remove</button><button data-m="close">×</button></div>`
+      : sts.length
+        ? `<div class="sts">${sts.map((st) => `<span class="${"dm" in st && st.dm ? "dm" : ""}" style="background:${esc(st.c)}">${esc(st.t)}</span>`).join("")}</div>`
+        : "";
+  return `<div class="chip ${u.party ? "party" : "npc"} ${turn ? "turn" : ""} ${u.visible ? "" : "hidden"}" data-id="${esc(u.id)}" title="${esc(name)}${showNums && u.maxHp ? ` · ${u.hp}/${u.maxHp} HP` : ""}">
+    <div class="shield"><div class="rim"></div><div class="face">
+      ${init}
+      <div class="name">${esc(name)}</div>
+      ${stats}
+    </div></div>
+    ${below}
+  </div>`;
 }
 
 function render() {
