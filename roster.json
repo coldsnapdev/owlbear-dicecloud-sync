@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-11-02T13:16:28.296Z",
+ "savedAt": "2026-11-02T13:16:53.860Z",
  "combatants": [
   {
    "itemId": "2553dd87-23cd-4ce4-96ee-da01e476386e",
@@ -42,7 +42,7 @@
   },
   {
    "itemId": "76d92c53-b398-4568-98e6-ef5e1005aa20",
-   "name": "Male Human 1",
+   "name": "Perran Carew",
    "realName": "Perran Carew",
    "initiative": 8,
    "ac": 11
