@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-11-02T23:07:07.812Z",
+ "savedAt": "2026-11-02T23:08:12.315Z",
  "tokens": {
   "8367561a-6dcc-4e83-a0ca-f90c3a66c604": [
    {
@@ -23,6 +23,12 @@
    {
     "key": "grappled",
     "label": "Grappled"
+   }
+  ],
+  "d1c8db8a-8445-4c93-8b92-531e1010e6f2": [
+   {
+    "key": "concentrating",
+    "label": "Concentrating"
    }
   ]
  }
