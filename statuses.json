@@ -1,16 +1,10 @@
 {
- "savedAt": "2026-11-02T22:17:37.269Z",
+ "savedAt": "2026-11-02T22:19:33.174Z",
  "tokens": {
   "8367561a-6dcc-4e83-a0ca-f90c3a66c604": [
    {
     "key": "custom:dead",
     "label": "Dead"
-   }
-  ],
-  "63ebc760-1f8c-4c28-a800-3ae10bae1f0a": [
-   {
-    "key": "charmed",
-    "label": "Charmed"
    }
   ]
  }
