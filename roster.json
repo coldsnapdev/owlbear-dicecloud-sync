@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-11-02T12:49:48.967Z",
+ "savedAt": "2026-11-02T12:53:53.939Z",
  "combatants": [
   {
    "itemId": "2553dd87-23cd-4ce4-96ee-da01e476386e",
@@ -35,17 +35,17 @@
    "ac": 11
   },
   {
+   "itemId": "fa745153-e10b-4dbd-9b1a-81ee65ec6cf0",
+   "name": "An",
+   "initiative": 8,
+   "ac": 16
+  },
+  {
    "itemId": "76d92c53-b398-4568-98e6-ef5e1005aa20",
    "name": "Male Human 1",
    "realName": "Perran Carew",
    "initiative": 8,
    "ac": 11
-  },
-  {
-   "itemId": "fa745153-e10b-4dbd-9b1a-81ee65ec6cf0",
-   "name": "An",
-   "initiative": 8,
-   "ac": 16
   },
   {
    "itemId": "47925504-1262-4a90-b350-b7192ddaca68",
