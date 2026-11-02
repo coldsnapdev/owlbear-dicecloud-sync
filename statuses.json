@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-11-02T22:55:25.091Z",
+ "savedAt": "2026-11-02T22:58:02.286Z",
  "tokens": {
   "8367561a-6dcc-4e83-a0ca-f90c3a66c604": [
    {
@@ -8,10 +8,6 @@
    }
   ],
   "4e4e6e1e-00c8-4171-81f2-05103924cd1b": [
-   {
-    "key": "prone",
-    "label": "Prone"
-   },
    {
     "key": "blinded",
     "label": "Blinded"
