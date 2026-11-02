@@ -10,8 +10,10 @@ import {
 } from "./dicecloud";
 import { isForgeUnit, readForgeStats } from "./forge";
 import { getGitHubToken, getMailboxStatus, setGitHubToken } from "./mailbox";
+import { addPartyToScene, getParty, saveParty } from "./party";
 import {
   getCharacterLinks,
+  getMappings,
   getStoredCredentials,
   ignoreItemName,
   isNameIgnored,
@@ -38,6 +40,7 @@ app.innerHTML = `
 
   <section class="block">
     <h2>Party</h2>
+    <div class="row party-row"><button id="party-add" type="button">Add party to scene</button><button id="party-save" class="secondary" type="button" title="Remember the sheet-linked tokens in this scene as the party">Save party</button><span id="party-status" class="status"></span></div>
     <p class="hint">Paste each token's DiceCloud sheet link.</p>
     <div id="mapping-list">Loading tokens…</div>
     <div id="ignored-list"></div>
@@ -62,6 +65,29 @@ app.innerHTML = `
 
   <p class="hint foot">build ${BUILD} — ${BUILD_NOTE}</p>
 `;
+
+// party list: save the sheet-linked tokens here as the party; drop them into any scene
+const partyStatus = document.getElementById("party-status")!;
+async function showParty() {
+  const party = await getParty();
+  partyStatus.textContent = party.length ? `${party.length} in party: ${party.map((m) => m.name).join(", ")}` : "No party saved yet";
+}
+document.getElementById("party-save")!.addEventListener("click", async () => {
+  const linked = new Set((await getMappings()).filter((m) => !m.companion).map((m) => m.itemId));
+  const items = (await OBR.scene.items.getItems()).filter((i) => linked.has(i.id));
+  if (!items.length) {
+    partyStatus.textContent = "No sheet-linked tokens in this scene";
+    return;
+  }
+  const n = await saveParty(items);
+  partyStatus.textContent = `Saved ${n}`;
+  setTimeout(showParty, 1500);
+});
+document.getElementById("party-add")!.addEventListener("click", async () => {
+  const n = await addPartyToScene();
+  partyStatus.textContent = n ? `Added ${n}` : "Everyone's already here";
+  setTimeout(showParty, 1500);
+});
 
 const usernameInput = document.getElementById("username") as HTMLInputElement;
 const passwordInput = document.getElementById("password") as HTMLInputElement;
@@ -390,6 +416,7 @@ OBR.onReady(async () => {
     return;
   }
   await initCredentialsForm();
+  showParty().catch(() => {});
   await renderMappings();
   // Covers both "no scene yet, one opens later" and "scene changes" — the
   // onChange listener itself only gets attached (once) inside

@@ -1,4 +1,4 @@
 // One build number for every page, so the panel can tell when the Owlbear side is stale
 // (Owlbear keeps the extension's background page from when the room was opened).
-export const BUILD = 55;
-export const BUILD_NOTE = "more room under the tiles";
+export const BUILD = 56;
+export const BUILD_NOTE = "own combat strip, initiative, HP bars, party list";

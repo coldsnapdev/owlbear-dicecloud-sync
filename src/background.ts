@@ -1,3 +1,5 @@
+import { getState } from "./combat";
+import { mirrorStatuses, startCombatHost } from "./combatHost";
 import { BUILD } from "./build";
 import { LINK_STATUS_KEY, LIVE_STATUS_KEY, RELAY_STATUS_KEY, listenLocal, type HpMessage, type HpResult, type LinkEnvelope, type LiveCombatant, type LiveMessage, type OwlbearMessage, liveCode, liveTopic, subscribeLive, type LiveSubscription } from "./live";
 import OBR from "@owlbear-rodeo/sdk";
@@ -146,6 +148,13 @@ async function drawStatuses() {
   if (toDelete.length) await OBR.scene.items.deleteItems(toDelete);
   if (toAdd.length) await OBR.scene.items.addItems(await Promise.all(toAdd.map((w) => w.build())));
   if (toDelete.length || toAdd.length) log(`Statuses: ${toAdd.length} added, ${toDelete.length} removed.`);
+  // the combat strip shows them too: public ones for everyone, DM-only ones on the GM's strip
+  const forStrip: Record<string, { t: string; c: string; dm?: boolean }[]> = {};
+  for (const [id, list] of Object.entries(statusFile.tokens)) {
+    if (!byId.has(id) || !list?.length) continue;
+    forStrip[id] = list.map((st) => ({ t: tokenText(st), c: st.key.startsWith("custom:") ? CUSTOM_COLOUR : statusDef(st.key)?.colour ?? CUSTOM_COLOUR, dm: !!st.dmOnly || undefined }));
+  }
+  await mirrorStatuses(forStrip).catch((err) => log("Couldn't share statuses with the strip:", err));
 }
 
 // --- Commands from the panel ----------------------------------------------------------
@@ -388,7 +397,8 @@ async function currentTurn(): Promise<string | undefined> {
     const id = typeof v === "string" ? v : v?.data;
     return typeof id === "string" && id ? id : undefined;
   };
-  return read(await OBR.scene.getMetadata()) ?? read(await OBR.room.getMetadata());
+  const ours = (await getState()).turn;
+  return ours ?? read(await OBR.scene.getMetadata()) ?? read(await OBR.room.getMetadata());
 }
 let turnListening = false;
 function listenTurn() {
@@ -643,6 +653,7 @@ function attachItemChangeListener() {
 OBR.onReady(async () => {
   log("Extension background ready.");
   listenForDice();
+  startCombatHost().catch((err) => log("Combat strip failed to start:", err));
 
   if (await OBR.scene.isReady()) {
     startPolling();

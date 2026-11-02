@@ -13,6 +13,7 @@ export default defineConfig({
         background: resolve(__dirname, "background.html"),
         dmPanel: resolve(__dirname, "dm-panel.html"),
         dice: resolve(__dirname, "dice.html"),
+        strip: resolve(__dirname, "strip.html"),
       },
     },
   },
