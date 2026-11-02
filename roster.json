@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-11-02T22:53:35.370Z",
+ "savedAt": "2026-11-02T22:57:46.894Z",
  "combatants": [
   {
    "itemId": "4e4e6e1e-00c8-4171-81f2-05103924cd1b",
@@ -36,7 +36,8 @@
    "itemId": "fb3962db-9348-4eee-a22a-9823c553d82d",
    "name": "Coll",
    "realName": "Coll",
-   "initiative": 4
+   "initiative": 4,
+   "ac": 12
   }
  ]
 }
