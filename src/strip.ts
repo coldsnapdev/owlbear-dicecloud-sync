@@ -154,6 +154,20 @@ function render() {
     lastSlot.delete(id);
   }
   // arrows sit just outside the outermost shields
+  // a dotted line where the order wraps: between the last in initiative and the first
+  let divider = stage.querySelector<HTMLElement>(".wrap-line");
+  const kLast = n ? slots.get(list[n - 1].id)! : 0;
+  const kFirst = n ? slots.get(list[0].id)! : 0;
+  if (live && n > 1 && kFirst - kLast === 1) {
+    if (!divider) {
+      divider = document.createElement("div");
+      divider.className = "wrap-line";
+      stage.appendChild(divider);
+    }
+    const gapMid = (offsetFor(kLast, live) + (W * scaleFor(kLast, live)) / 2 + offsetFor(kFirst, live) - (W * scaleFor(kFirst, live)) / 2) / 2;
+    divider.style.transform = `translateX(calc(-50% + ${gapMid.toFixed(1)}px))`;
+  } else divider?.remove();
+
   // each arrow hugs its own end of the row (the sides aren't always the same length)
   const ks = [...slots.values()];
   const leftEdge = n ? Math.min(...ks.map((k) => offsetFor(k, live) - (W * scaleFor(k, live)) / 2)) : 0;
