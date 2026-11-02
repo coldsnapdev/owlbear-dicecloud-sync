@@ -197,86 +197,142 @@ export async function mirrorStatuses(all: Record<string, { t: string; c: string;
   await OBR.scene.setMetadata({ [COMBAT_KEY]: { ...now, statuses: pub } satisfies CombatState });
 }
 
-// --- Turn marker --------------------------------------------------------------------------
-// A gold halo under the active token, gently breathing, with a dashed ring slowly turning
-// round it. Drawn as local items on every client (nothing synced), so each screen can animate
-// it smoothly; players only get it when they can see that token.
+// --- Turn and target markers ---------------------------------------------------------------
+// The active token gets a gold halo, gently breathing, with a dashed ring slowly turning round
+// it; each target gets the same in red, turning the other way. Drawn as local items on every
+// client (nothing synced), so each screen animates them smoothly; players only get markers on
+// tokens they can see.
 const TURN_KEY = "com.abelon.combat/turn-marker";
-let marker: { parent: string; halo: string; ring: string; sig: string } | undefined;
+type Kind = "turn" | "target";
+const LOOK: Record<Kind, { halo: string; ring: string; spin: number }> = {
+  turn: { halo: "#f0c869", ring: "#f6d98e", spin: 12 },
+  target: { halo: "#e0533d", ring: "#f0745e", spin: -12 },
+};
+interface Marker { key: string; kind: Kind; halo: string; ring: string; sig: string }
+let markers: Marker[] = [];
 let markerTick: ReturnType<typeof setInterval> | undefined;
 let markerBusy = false;
+let markerAgain = false;
+const t0 = performance.now();
 async function clearMarker() {
-  clearInterval(markerTick);
-  markerTick = undefined;
-  const mine = (await OBR.scene.local.getItems()).filter((i) => i.metadata[TURN_KEY]).map((i) => i.id);
-  if (mine.length) await OBR.scene.local.deleteItems(mine);
-  marker = undefined;
+  markers = [];
+  try {
+    const mine = (await OBR.scene.local.getItems()).filter((i) => i.metadata[TURN_KEY]).map((i) => i.id);
+    if (mine.length) await OBR.scene.local.deleteItems(mine);
+  } catch {
+    // no scene
+  }
+}
+function markerItems(kind: Kind, centre: { x: number; y: number }, size: number, dpi: number, parent: string, grow: number) {
+  const look = LOOK[kind];
+  const halo = buildShape()
+    .shapeType("CIRCLE")
+    .width(size * (1.06 + grow))
+    .height(size * (1.06 + grow))
+    .position(centre)
+    .fillColor(look.halo)
+    .fillOpacity(0.22)
+    .strokeWidth(0)
+    .strokeOpacity(0)
+    .layer("PROP")
+    .attachedTo(parent)
+    .disableAttachmentBehavior(["ROTATION", "SCALE", "COPY"])
+    .locked(true)
+    .disableHit(true)
+    .metadata({ [TURN_KEY]: kind })
+    .build();
+  const ring = buildShape()
+    .shapeType("CIRCLE")
+    .width(size * (1.01 + grow))
+    .height(size * (1.01 + grow))
+    .position(centre)
+    .fillOpacity(0)
+    .strokeColor(look.ring)
+    .strokeOpacity(0.95)
+    .strokeWidth(Math.max(4, Math.round(dpi * 0.065)))
+    .strokeDash([Math.round(dpi * 0.22), Math.round(dpi * 0.11)])
+    .layer("PROP")
+    .attachedTo(parent)
+    .disableAttachmentBehavior(["ROTATION", "SCALE", "COPY"])
+    .locked(true)
+    .disableHit(true)
+    .metadata({ [TURN_KEY]: kind })
+    .build();
+  return { halo, ring };
 }
 async function updateMarker() {
-  if (markerBusy) return;
+  if (markerBusy) {
+    markerAgain = true;
+    return;
+  }
   markerBusy = true;
   try {
     if (!(await OBR.scene.isReady())) return clearMarker();
     const st = await getState();
-    const [token] = st.turn ? await OBR.scene.items.getItems([st.turn]) : [];
-    if (!token || !inCombat(token) || (!gm && !token.visible)) return clearMarker();
-    const b = await OBR.scene.items.getItemBounds([token.id]);
+    const want: { id: string; kind: Kind }[] = [];
+    if (st.turn) want.push({ id: st.turn, kind: "turn" });
+    for (const id of st.targets ?? []) want.push({ id, kind: "target" });
+    const tokens = want.length ? await OBR.scene.items.getItems(want.map((w) => w.id)) : [];
+    const byId = new Map(tokens.map((t) => [t.id, t]));
     const dpi = await OBR.scene.grid.getDpi();
-    const size = Math.max(b.width, b.height);
-    const sig = JSON.stringify([token.id, Math.round(b.center.x), Math.round(b.center.y), Math.round(size)]);
-    if (marker?.sig === sig) return;
-    await clearMarker();
-    const halo = buildShape()
-      .shapeType("CIRCLE")
-      .width(size * 1.06)
-      .height(size * 1.06)
-      .position(b.center)
-      .fillColor("#f0c869")
-      .fillOpacity(0.22)
-      .strokeWidth(0)
-      .strokeOpacity(0)
-      .layer("PROP")
-      .attachedTo(token.id)
-      .disableAttachmentBehavior(["ROTATION", "SCALE", "COPY"])
-      .locked(true)
-      .disableHit(true)
-      .metadata({ [TURN_KEY]: true })
-      .build();
-    const ring = buildShape()
-      .shapeType("CIRCLE")
-      .width(size * 1.01)
-      .height(size * 1.01)
-      .position(b.center)
-      .fillOpacity(0)
-      .strokeColor("#f6d98e")
-      .strokeOpacity(0.95)
-      .strokeWidth(Math.max(4, Math.round(dpi * 0.065)))
-      .strokeDash([Math.round(dpi * 0.22), Math.round(dpi * 0.11)])
-      .layer("PROP")
-      .attachedTo(token.id)
-      .disableAttachmentBehavior(["ROTATION", "SCALE", "COPY"])
-      .locked(true)
-      .disableHit(true)
-      .metadata({ [TURN_KEY]: true })
-      .build();
-    await OBR.scene.local.addItems([halo, ring]);
-    marker = { parent: token.id, halo: halo.id, ring: ring.id, sig };
-    const t0 = performance.now();
-    markerTick = setInterval(() => {
-      if (!marker) return;
-      const t = (performance.now() - t0) / 1000;
-      const m = marker;
-      OBR.scene.local
-        .updateItems([m.halo, m.ring], (its) => {
-          for (const it of its) {
-            if (it.id === m.ring) it.rotation = (t * 12) % 360; // one turn every 30 s
-            else (it as Item & { style: { fillOpacity: number } }).style.fillOpacity = 0.14 + 0.1 * (0.5 + 0.5 * Math.sin(t * 1.3));
-          }
-        })
-        .catch(() => {});
-    }, 70);
+    const next: { key: string; kind: Kind; id: string; sig: string; centre: { x: number; y: number }; size: number; grow: number }[] = [];
+    for (const w of want) {
+      const t = byId.get(w.id);
+      if (!t || (!gm && !t.visible)) continue;
+      if (w.kind === "turn" && !inCombat(t)) continue;
+      const b = await OBR.scene.items.getItemBounds([t.id]);
+      const size = Math.max(b.width, b.height);
+      // a target that's also the active token gets its red marker just outside the gold one
+      const grow = w.kind === "target" && st.turn === t.id ? 0.12 : 0;
+      next.push({ key: `${w.kind}:${t.id}`, kind: w.kind, id: t.id, centre: b.center, size, grow, sig: JSON.stringify([Math.round(b.center.x), Math.round(b.center.y), Math.round(size), grow]) });
+    }
+    const keep = new Set<string>();
+    const gone: string[] = [];
+    for (const m of markers) {
+      const n = next.find((x) => x.key === m.key);
+      if (n && n.sig === m.sig) keep.add(m.key);
+      else gone.push(m.halo, m.ring);
+    }
+    markers = markers.filter((m) => keep.has(m.key));
+    if (gone.length) await OBR.scene.local.deleteItems(gone);
+    const add = next.filter((n) => !keep.has(n.key));
+    const items: Item[] = [];
+    for (const n of add) {
+      const { halo, ring } = markerItems(n.kind, n.centre, n.size, dpi, n.id, n.grow);
+      items.push(halo, ring);
+      markers.push({ key: n.key, kind: n.kind, halo: halo.id, ring: ring.id, sig: n.sig });
+    }
+    if (items.length) await OBR.scene.local.addItems(items);
+    if (markers.length && !markerTick) {
+      markerTick = setInterval(() => {
+        if (!markers.length) return;
+        const t = (performance.now() - t0) / 1000;
+        const kindOf = new Map<string, { kind: Kind; ring: boolean }>();
+        for (const m of markers) {
+          kindOf.set(m.ring, { kind: m.kind, ring: true });
+          kindOf.set(m.halo, { kind: m.kind, ring: false });
+        }
+        OBR.scene.local
+          .updateItems([...kindOf.keys()], (its) => {
+            for (const it of its) {
+              const k = kindOf.get(it.id);
+              if (!k) continue;
+              if (k.ring) it.rotation = (((t * LOOK[k.kind].spin) % 360) + 360) % 360; // one turn every 30 s
+              else (it as Item & { style: { fillOpacity: number } }).style.fillOpacity = 0.14 + 0.1 * (0.5 + 0.5 * Math.sin(t * 1.3));
+            }
+          })
+          .catch(() => {});
+      }, 70);
+    } else if (!markers.length && markerTick) {
+      clearInterval(markerTick);
+      markerTick = undefined;
+    }
   } finally {
     markerBusy = false;
+    if (markerAgain) {
+      markerAgain = false;
+      updateMarker().catch(() => {});
+    }
   }
 }
 

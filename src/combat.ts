@@ -23,6 +23,8 @@ export interface CombatState {
   turn?: string;
   /** public statuses per token (DM-only ones never go here: players can read scene metadata) */
   statuses?: Record<string, PublicStatus[]>;
+  /** tokens the DM is aiming at: everyone sees a red marker on them */
+  targets?: string[];
 }
 
 export interface Unit {
@@ -142,7 +144,7 @@ export async function step(dir: 1 | -1) {
 export async function endCombat() {
   const items = await OBR.scene.items.getItems(inCombat);
   if (items.length) await removeFromCombat(items.map((i) => i.id));
-  await patchState({ turn: undefined, round: 0 });
+  await patchState({ turn: undefined, round: 0, targets: [] });
 }
 
 /** Write a bestiary entry's Forge stats onto a token, at full HP; its name, initiative and place in combat are kept. */

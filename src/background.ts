@@ -1,4 +1,4 @@
-import { ALLY_KEY, applyStatBlock, endCombat, getState, step } from "./combat";
+import { ALLY_KEY, applyStatBlock, endCombat, getState, patchState, step } from "./combat";
 import { mirrorStatuses, startCombatHost } from "./combatHost";
 import { BUILD } from "./build";
 import { refreshPages, REFRESH_CHANNEL } from "./refresh";
@@ -263,8 +263,9 @@ function handleLiveMessage(msg: LiveMessage) {
     return;
   }
   if (msg.kind === "targets") {
-    targetIds = msg.ids;
-    reconcileTargets().catch((err) => log("Couldn't draw targets:", err));
+    // the markers themselves are drawn on every screen from the combat state (see combatHost)
+    patchState({ targets: msg.ids }).catch((err) => log("Couldn't set targets:", err));
+    removeOldRings().catch(() => {});
     return;
   }
   if (doneCommands.has(msg.id)) return;
@@ -272,50 +273,14 @@ function handleLiveMessage(msg: LiveMessage) {
   runCommand(msg).catch((err) => log("Panel command failed:", err));
 }
 
-// --- Targets: a dashed ring round each token the DM is aiming at, seen by everyone --------
+// --- Targets ------------------------------------------------------------------------------
+// Earlier builds drew target rings as synced scene items; they're now local markers drawn on
+// every screen from the combat state. Clear any old rings left in a scene.
 const TARGET_KEY = "com.abelon.target/ring";
-let targetIds: string[] = [];
-let targetDraw: Promise<void> = Promise.resolve();
-function reconcileTargets(): Promise<void> {
-  targetDraw = targetDraw.catch(() => {}).then(drawTargets);
-  return targetDraw;
-}
-async function drawTargets() {
+async function removeOldRings() {
   if (!(await OBR.scene.isReady())) return;
-  const items = await OBR.scene.items.getItems();
-  const present = new Set(items.map((i) => i.id));
-  const rings = items.filter((i) => i.metadata[TARGET_KEY]);
-  const want = new Set(targetIds.filter((id) => present.has(id)));
-  const stale = rings.filter((r) => !want.has((r.metadata[TARGET_KEY] as { parent: string }).parent)).map((r) => r.id);
-  const have = new Set(rings.map((r) => (r.metadata[TARGET_KEY] as { parent: string }).parent));
-  const dpi = await OBR.scene.grid.getDpi();
-  const add: Item[] = [];
-  for (const id of want) {
-    if (have.has(id)) continue;
-    const b = await OBR.scene.items.getItemBounds([id]);
-    const size = Math.max(b.width, b.height) * 1.18;
-    add.push(
-      buildShape()
-        .shapeType("CIRCLE")
-        .width(size)
-        .height(size)
-        .position(b.center)
-        .fillOpacity(0)
-        .strokeColor("#e0533d")
-        .strokeOpacity(0.95)
-        .strokeWidth(Math.max(3, Math.round(dpi * 0.045)))
-        .strokeDash([Math.round(dpi * 0.14), Math.round(dpi * 0.07)])
-        .attachedTo(id)
-        .layer("ATTACHMENT")
-        .locked(true)
-        .disableHit(true)
-        .disableAttachmentBehavior(["ROTATION", "COPY"])
-        .metadata({ [TARGET_KEY]: { parent: id } })
-        .build(),
-    );
-  }
-  if (stale.length) await OBR.scene.items.deleteItems(stale);
-  if (add.length) await OBR.scene.items.addItems(add);
+  const old = (await OBR.scene.items.getItems()).filter((i) => i.metadata[TARGET_KEY]).map((i) => i.id);
+  if (old.length) await OBR.scene.items.deleteItems(old);
 }
 
 // --- HP changes from the panel ------------------------------------------------------------
@@ -464,7 +429,7 @@ function startDirectLink() {
       listenSelection();
       listenTurn();
       pushRoster(true).catch(() => {});
-      reconcileTargets().catch(() => {});
+      removeOldRings().catch(() => {});
     }
     panelWindow?.postMessage({ abelon: "ack", ref: d.ref } satisfies LinkEnvelope, location.origin);
     localStorage.setItem(LINK_STATUS_KEY, JSON.stringify({ state: "linked", at: Date.now() }));
