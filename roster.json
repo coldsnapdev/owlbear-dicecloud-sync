@@ -1,25 +1,25 @@
 {
- "savedAt": "2026-11-02T12:42:45.304Z",
+ "savedAt": "2026-11-02T12:43:07.441Z",
  "combatants": [
-  {
-   "itemId": "16d7f9d8-cc07-49ce-a22e-9f00885df1e1",
-   "name": "Male Elf 1",
-   "realName": "Osric",
-   "initiative": 0,
-   "ac": 11
-  },
   {
    "itemId": "cce20b91-c811-47b6-9a92-29090c560e8a",
    "name": "Male Gnome 1",
    "realName": "Fenn",
-   "initiative": 0,
+   "initiative": 18,
+   "ac": 11
+  },
+  {
+   "itemId": "16d7f9d8-cc07-49ce-a22e-9f00885df1e1",
+   "name": "Male Elf 1",
+   "realName": "Osric",
+   "initiative": 9,
    "ac": 11
   },
   {
    "itemId": "76d92c53-b398-4568-98e6-ef5e1005aa20",
    "name": "Male Human 1",
    "realName": "Perran Carew",
-   "initiative": 0,
+   "initiative": 8,
    "ac": 11
   },
   {
