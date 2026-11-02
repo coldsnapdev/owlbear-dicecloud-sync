@@ -1,44 +1,4 @@
 {
- "savedAt": "2026-11-02T12:37:06.065Z",
- "combatants": [
-  {
-   "itemId": "f1bdb335-d08e-4bfc-9a71-247a12609177",
-   "name": "An",
-   "realName": "An",
-   "initiative": 21,
-   "ac": 16
-  },
-  {
-   "itemId": "ec8eb598-5897-4d19-ae1e-203e1a70d22b",
-   "name": "Danzel",
-   "realName": "Danzel",
-   "initiative": 18,
-   "ac": 16
-  },
-  {
-   "itemId": "d4fe1d5b-b95f-48a1-8649-fd547b172fc6",
-   "name": "Wren",
-   "initiative": 17,
-   "ac": 11
-  },
-  {
-   "itemId": "2de15995-ebe1-42c0-99b0-16c216518b05",
-   "name": "Jenok",
-   "initiative": 13,
-   "ac": 15
-  },
-  {
-   "itemId": "4de430d6-8454-446f-84b4-f0b04b8a178b",
-   "name": "Tenok",
-   "initiative": 6,
-   "ac": 16
-  },
-  {
-   "itemId": "8367561a-6dcc-4e83-a0ca-f90c3a66c604",
-   "name": "Rot Skulker 4",
-   "realName": "Rot Skulker 4",
-   "initiative": 5,
-   "ac": 10
-  }
- ]
+ "savedAt": "2026-11-02T12:37:18.693Z",
+ "combatants": []
 }
