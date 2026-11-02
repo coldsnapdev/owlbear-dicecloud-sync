@@ -71,11 +71,11 @@ function contextMenus() {
 }
 
 // --- HP bars ------------------------------------------------------------------------------
-// Two (or three) flat bars attached inside the bottom edge of each token that has HP:
+// Two (or three) flat bars attached inside the bottom edge of each token in combat with HP:
 // a dark track, the HP fill, and temp HP in blue after it. Everyone sees them (bars only,
 // no numbers); a hidden token's bar is hidden with it.
 const BAR_KEY = "com.abelon.hp/bar";
-const BAR_STYLE = 1;
+const BAR_STYLE = 2;
 interface BarMeta { parent: string; part: string; sig: string }
 const num = (v: unknown) => {
   const n = Number(v);
@@ -95,7 +95,8 @@ async function drawBars() {
   const items = await OBR.scene.items.getItems();
   const dpi = await OBR.scene.grid.getDpi();
   const bars = items.filter((i) => i.metadata[BAR_KEY]);
-  const tokens = items.filter((i) => !i.metadata[BAR_KEY] && (num(i.metadata[FORGE_KEYS.maxHP]) ?? 0) > 0);
+  // only during combat: the bars appearing is part of the signal that a fight is on
+  const tokens = items.filter((i) => !i.metadata[BAR_KEY] && inCombat(i) && (num(i.metadata[FORGE_KEYS.maxHP]) ?? 0) > 0);
   const keep = new Set<string>();
   const add: Item[] = [];
   for (const t of tokens) {
@@ -106,7 +107,7 @@ async function drawBars() {
     const w = Math.round(b.width * 0.72);
     const h = Math.max(4, Math.round(dpi * 0.065));
     const x = Math.round(b.center.x - w / 2);
-    const y = Math.round(b.max.y - h - dpi * 0.05);
+    const y = Math.round(b.max.y - h - dpi * 0.15); // inside the token's bottom edge, clear of the name plate
     const pct = hp / max;
     const fill = pct > 0.5 ? "#4fae5f" : pct > 0.25 ? "#d9a441" : "#d05a43";
     const parts: { part: string; px: number; pw: number; colour: string; opacity: number; z: number }[] = [
