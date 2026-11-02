@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-11-02T22:37:32.656Z",
+ "savedAt": "2026-11-02T22:37:43.919Z",
  "combatants": [
   {
    "itemId": "4e4e6e1e-00c8-4171-81f2-05103924cd1b",
@@ -11,7 +11,7 @@
   {
    "itemId": "d1c8db8a-8445-4c93-8b92-531e1010e6f2",
    "name": "Danzel",
-   "initiative": 0,
+   "initiative": 16,
    "ac": 16
   },
   {
