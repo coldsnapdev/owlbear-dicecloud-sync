@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-11-02T22:37:43.919Z",
+ "savedAt": "2026-11-02T22:37:47.197Z",
  "combatants": [
   {
    "itemId": "4e4e6e1e-00c8-4171-81f2-05103924cd1b",
@@ -17,7 +17,7 @@
   {
    "itemId": "a0f60a4f-8881-436a-88ad-075fca2c9893",
    "name": "Jenok",
-   "initiative": 0,
+   "initiative": 8,
    "ac": 15
   },
   {
