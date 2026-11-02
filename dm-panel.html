@@ -91,6 +91,10 @@
         padding-top: 4px;
       }
       .hpv { flex: none; display: grid; place-items: center; min-width: 58px; height: 44px; padding: 3px 8px 0; border-radius: 8px; font: 600 16px/1 Cinzel, serif; color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); white-space: nowrap; }
+      .hpv[data-hp] { cursor: pointer; }
+      .hpv[data-hp]:hover { border-color: var(--brass); background: rgba(201,162,94,.15); }
+      .hpv.editing { padding: 0 4px; }
+      .hp-in { width: 92px; font: 600 15px/1 Cinzel, serif; text-align: center; padding: 4px; border-radius: 6px; border: 1px solid var(--brass); background: #fff4dc; color: #1b140c; }
       .hpv small { display: block; font: 500 9px/1 Cinzel, serif; letter-spacing: .1em; color: var(--ink-faint); }
       .hpv .tmp { display: inline; font-size: 11px; color: #8fb6e8; letter-spacing: 0; }
       .ac small, .vitals small { display: block; font: 500 9px/1 Cinzel, serif; letter-spacing: .1em; color: var(--ink-faint); }

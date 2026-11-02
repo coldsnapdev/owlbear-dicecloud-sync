@@ -6,7 +6,7 @@
 // Discord with flavour text (and full spell text) for the table.
 import { BUILD } from "./build";
 import { liveBuild } from "./refresh";
-import { liveCode, liveTopic, onOwlbear, owlbearBuild, owlbearWindow, publishLive, relayStatus, sendDirect, sendLocal, type HpResult, type LiveCombatant, type LiveMessage } from "./live";
+import { liveCode, liveTopic, onOwlbear, owlbearBuild, owlbearWindow, publishLive, relayStatus, sendDirect, sendLocal, type HpMessage, type HpResult, type LiveCombatant, type LiveMessage } from "./live";
 import {
   loadAssignments,
   loadBestiary,
@@ -177,7 +177,7 @@ onOwlbear((m) => {
   }
 });
 // don't redraw under someone typing a custom status
-const busyTyping = () => document.activeElement instanceof HTMLInputElement && (document.activeElement.classList.contains("st-custom") || document.activeElement.classList.contains("pc-init-in"));
+const busyTyping = () => document.activeElement instanceof HTMLInputElement && ["st-custom", "pc-init-in", "hp-in"].some((c) => (document.activeElement as HTMLElement).classList.contains(c));
 
 // --- Targets ----------------------------------------------------------------------------
 let targets: string[] = [];
@@ -1215,6 +1215,54 @@ function wireResolve() {
 
 // --- Initiative and the fight itself (the strip in Owlbear shows the result) -------------
 let initEditing: string | undefined;
+// --- Changing HP by hand (Forge's job before): click a card's HP and type ----------------
+// "-6" damage (temp HP first), "+4" healing, "20" sets HP, "t5" sets temp HP. Party members
+// change on their DiceCloud sheet, everyone else in Owlbear, exactly as an applied hit does.
+let hpEditing: string | undefined;
+function applyHpText(id: string, text: string) {
+  const c = combatant(id);
+  const t = text.replace(/\s+/g, "").toLowerCase();
+  if (!c || !t) return;
+  const at = new Date().toISOString();
+  let m: RegExpMatchArray | null;
+  const send = (extra: Partial<HpMessage>) => fastSend({ kind: "hp", id: crypto.randomUUID(), at, itemId: id, ...extra }).then((ok) => {
+    if (!ok) {
+      meta.textContent = "HP not changed: Owlbear isn't linked";
+      meta.className = "warn";
+    }
+  });
+  if ((m = t.match(/^-(\d+)$/))) send({ damage: Number(m[1]) });
+  else if ((m = t.match(/^\+(\d+)$/))) send({ damage: -Number(m[1]) });
+  else if ((m = t.match(/^=?(\d+)$/))) send({ set: { hp: Number(m[1]), temp: c.tempHp ?? 0 } });
+  else if ((m = t.match(/^t(\d+)$/))) send({ set: { hp: c.hp ?? 0, temp: Number(m[1]) } });
+}
+function wireHp() {
+  app.querySelectorAll<HTMLElement>("[data-hp]").forEach((el) =>
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      hpEditing = el.dataset.hp;
+      render();
+    }),
+  );
+  const input = app.querySelector<HTMLInputElement>("[data-hp-in]");
+  if (!input) return;
+  input.focus();
+  let done = false;
+  const finish = (keep: boolean) => {
+    if (done) return;
+    done = true;
+    hpEditing = undefined;
+    if (keep) applyHpText(input.dataset.hpIn!, input.value);
+    render();
+  };
+  input.addEventListener("click", (e) => e.stopPropagation());
+  input.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Enter") finish(true);
+    if (e.key === "Escape") finish(false);
+  });
+  input.addEventListener("blur", () => finish(true));
+}
 let endArmed = false;
 function combatBar(): string {
   if (!roster?.combatants.length || !owlbearWindow()) return "";
@@ -1357,7 +1405,9 @@ function render() {
                 </select></span></span>${alias}</span>
             ${headChips(c.itemId)}
             ${tag}
-            ${c.hp !== undefined ? `<span class="hpv" title="Hit points (live from Owlbear)"><span><small>HP</small>${c.hp}${c.maxHp !== undefined ? `/${c.maxHp}` : ""}${c.tempHp ? ` <small class="tmp">+${c.tempHp}</small>` : ""}</span></span>` : ""}
+            ${hpEditing === c.itemId
+              ? `<span class="hpv editing"><input class="hp-in" data-hp-in="${escapeHtml(c.itemId)}" placeholder="-6 / +4 / 20" title="-6 damage · +4 healing · 20 sets HP · t5 sets temp HP" /></span>`
+              : `<span class="hpv" data-hp="${escapeHtml(c.itemId)}" title="Click to change HP: -6 damage, +4 heal, 20 sets it, t5 sets temp HP"><span><small>HP</small>${c.hp ?? "–"}${c.maxHp !== undefined ? `/${c.maxHp}` : ""}${c.tempHp ? ` <small class="tmp">+${c.tempHp}</small>` : ""}</span></span>`}
             <span class="ac" title="Armour class"><small>AC</small>${c.ac ?? "–"}</span>
             <span class="chev" aria-hidden="true"></span>
           </div>
@@ -1405,6 +1455,7 @@ function render() {
   app.querySelectorAll<HTMLButtonElement>(".tb-x").forEach((b) => b.addEventListener("click", () => setTargets(targets.filter((x) => x !== b.dataset.id))));
   app.querySelector<HTMLButtonElement>(".tb-clear")?.addEventListener("click", () => setTargets([]));
   wireInitiative();
+  wireHp();
   app.querySelectorAll<HTMLInputElement>(".ally-box").forEach((box) =>
     box.addEventListener("change", () => {
       const c = combatant(box.dataset.id!);
@@ -1528,7 +1579,7 @@ function render() {
       render();
     };
     head.addEventListener("click", (e) => {
-      if ((e.target as HTMLElement).closest(".sb-pick")) return; // the stat block menu, not a toggle
+      if ((e.target as HTMLElement).closest(".sb-pick, [data-hp], .hp-in")) return; // menus and HP edit, not a toggle
       toggle();
     });
     head.addEventListener("keydown", (e) => {
