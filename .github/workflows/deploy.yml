@@ -19,11 +19,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
       - run: npm install
       - run: npm run build
+      # Keep the previous three builds' hashed files alive too. Browsers (and Owlbear's
+      # extension frames) can keep a page's HTML for up to 10 minutes; if a deploy deletes
+      # the scripts that cached HTML points at, the page loads blank.
+      - name: Carry forward recent builds' assets
+        run: |
+          for n in 1 2 3; do
+            git rev-parse --verify -q "HEAD~$n" >/dev/null || break
+            rm -rf "/tmp/prev$n"
+            git worktree add -f "/tmp/prev$n" "HEAD~$n"
+            (cd "/tmp/prev$n" && npm install --no-audit --no-fund >/dev/null && npm run build >/dev/null) || continue
+            cp -n "/tmp/prev$n"/dist/assets/* dist/assets/ || true
+          done
+          ls dist/assets | wc -l
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
