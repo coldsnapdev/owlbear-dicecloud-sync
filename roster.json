@@ -1,12 +1,4 @@
 {
- "savedAt": "2026-11-02T22:15:51.071Z",
- "combatants": [
-  {
-   "itemId": "63ebc760-1f8c-4c28-a800-3ae10bae1f0a",
-   "name": "Oskar Sternov",
-   "realName": "Oskar Sternov",
-   "initiative": 0,
-   "ac": 16
-  }
- ]
+ "savedAt": "2026-11-02T22:19:45.055Z",
+ "combatants": []
 }
