@@ -12,7 +12,9 @@ import { getGitHubToken, loadAssignments, loadBestiary, type Assignments, type B
 
 const STRIP_ID = "com.abelon.combat/strip";
 const CHIP_W = 104; // shield 96 + gap 8
-const STRIP_H = 190; // the enlarged active shield, its round label and two rows of statuses
+const STRIP_H = 190; // starting height; the strip then reports what its contents actually need
+let stripHeight = STRIP_H;
+let wantHeight = STRIP_H;
 
 // --- The strip popover --------------------------------------------------------------------
 let gm = false;
@@ -35,7 +37,7 @@ async function updateStrip() {
       id: STRIP_ID,
       url: new URL(`strip.html?v=${BUILD}`, location.href).href,
       width: w,
-      height: STRIP_H,
+      height: wantHeight,
       anchorReference: "POSITION",
       anchorPosition: { left: Math.round(vw / 2), top: 6 },
       anchorOrigin: { horizontal: "CENTER", vertical: "TOP" },
@@ -45,10 +47,17 @@ async function updateStrip() {
     });
     stripOpen = true;
     stripWidth = w;
+    stripHeight = wantHeight;
     openedAtVw = vw;
-  } else if (w !== stripWidth) {
-    await OBR.popover.setWidth(STRIP_ID, w);
-    stripWidth = w;
+  } else {
+    if (w !== stripWidth) {
+      await OBR.popover.setWidth(STRIP_ID, w);
+      stripWidth = w;
+    }
+    if (wantHeight !== stripHeight) {
+      await OBR.popover.setHeight(STRIP_ID, wantHeight);
+      stripHeight = wantHeight;
+    }
   }
 }
 async function closeStrip() {
@@ -364,5 +373,10 @@ export async function startCombatHost() {
   setInterval(() => {
     if (stripOpen) updateStrip().catch(() => {});
   }, 3000);
-  OBR.broadcast.onMessage("com.abelon.combat/strip-size", () => updateStrip().catch(() => {}));
+  // the strip reports how tall its contents are (statuses under the big active shield, etc.)
+  OBR.broadcast.onMessage("com.abelon.combat/strip-size", (ev) => {
+    const h = Number((ev.data as { height?: number } | undefined)?.height);
+    if (Number.isFinite(h) && h > 0) wantHeight = Math.max(120, Math.min(400, Math.ceil(h)));
+    updateStrip().catch(() => {});
+  });
 }

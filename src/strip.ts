@@ -230,12 +230,31 @@ function fitName(full: string): string {
 }
 document.fonts?.ready.then(() => render());
 
-// the background sizes the popover to fit
+// the background sizes the popover to fit: how many shields (width) and how tall everything
+// under them runs (height), measured once the shields have finished sliding and growing
 let lastCount = -1;
+let lastHeight = -1;
+let measureTimer: number | undefined;
+function contentHeight(): number {
+  let bottom = 0;
+  strip.querySelectorAll<HTMLElement>(".chip, .arrow, .round-box").forEach((el) => {
+    bottom = Math.max(bottom, el.getBoundingClientRect().bottom);
+  });
+  return Math.ceil(bottom + 8);
+}
+function send() {
+  const height = contentHeight();
+  if (lastCount === lastCountSent && Math.abs(height - lastHeight) < 2) return;
+  lastCountSent = lastCount;
+  lastHeight = height;
+  OBR.broadcast.sendMessage("com.abelon.combat/strip-size", { count: lastCount, height }, { destination: "LOCAL" });
+}
+let lastCountSent = -2;
 function reportWidth(n: number) {
-  if (n === lastCount) return;
   lastCount = n;
-  OBR.broadcast.sendMessage("com.abelon.combat/strip-size", { count: n }, { destination: "LOCAL" });
+  send(); // right away, so a new row of statuses isn't clipped while it waits
+  clearTimeout(measureTimer);
+  measureTimer = window.setTimeout(send, 700); // and again once the transitions have settled
 }
 
 strip.addEventListener("click", async (e) => {
