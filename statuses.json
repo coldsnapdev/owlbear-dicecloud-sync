@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-11-03T11:57:46.195Z",
+ "savedAt": "2026-11-03T12:07:19.854Z",
  "tokens": {
   "8367561a-6dcc-4e83-a0ca-f90c3a66c604": [
    {
@@ -11,12 +11,6 @@
    {
     "key": "custom:bardic inspiration",
     "label": "Bardic Inspiration"
-   }
-  ],
-  "4e4e6e1e-00c8-4171-81f2-05103924cd1b": [
-   {
-    "key": "custom:dead",
-    "label": "Dead"
    }
   ],
   "fb3962db-9348-4eee-a22a-9823c553d82d": [
@@ -45,6 +39,12 @@
    {
     "key": "charmed",
     "label": "Charmed"
+   }
+  ],
+  "4e4e6e1e-00c8-4171-81f2-05103924cd1b": [
+   {
+    "key": "dead",
+    "label": "Dead"
    }
   ]
  }
