@@ -3,7 +3,8 @@
 // GM's own screen shows.
 import OBR, { buildLabel, type Item } from "@owlbear-rodeo/sdk";
 import { BUILD } from "./build";
-import { clearMatch, linkTokens, loadCast, mirrorExtras, NAMER_KEY, setHidden, type NamerData } from "./cast";
+import { applyDisplayName, clearMatch, linkTokens, loadCast, mirrorExtras, NAMER_KEY, nextPlaceholder, setHidden, type NamerData } from "./cast";
+import { getMappings } from "./config";
 import { PICKER_ID } from "./castPicker.ids";
 
 function openPicker(ids: string[]) {
@@ -114,6 +115,66 @@ async function drawTags() {
   }
 }
 
+// --- Linking as you go ------------------------------------------------------------------------
+// A token dropped into the scene, or renamed, whose name clearly means one person in the cast
+// (a full name, or a short name only one person has) is linked to them and its name hidden,
+// straight away. Tokens already in the scene when it loads are left for "Set up all". The party
+// (anyone linked to a DiceCloud sheet) is never touched. Undo: Reveal name, or This is….
+const seenNames = new Map<string, string>();
+let primed = false;
+let autoBusy = false;
+async function autoLink() {
+  if (autoBusy) return;
+  autoBusy = true;
+  try {
+    if (!(await OBR.scene.isReady())) return;
+    const items = await OBR.scene.items.getItems((i) => i.layer === "CHARACTER");
+    const changed: Item[] = [];
+    const copies: Item[] = [];
+    for (const it of items) {
+      const before = seenNames.get(it.id);
+      seenNames.set(it.id, it.name);
+      if (!primed || before === it.name) continue;
+      const d = it.metadata[NAMER_KEY] as NamerData | undefined;
+      // a copy of a disguised token arrives with the same placeholder: give it the next number
+      if (before === undefined && d && items.some((o) => o.id !== it.id && (o.metadata[NAMER_KEY] as NamerData | undefined)?.placeholder === d.placeholder)) {
+        copies.push(it);
+        continue;
+      }
+      // our own name changes (to the placeholder or back to the real name) aren't renames
+      if (d && (it.name === d.placeholder || it.name === d.realName)) continue;
+      changed.push(it);
+    }
+    for (const id of [...seenNames.keys()]) if (!items.some((i) => i.id === id)) seenNames.delete(id);
+    primed = true;
+    for (const it of copies) {
+      const d = it.metadata[NAMER_KEY] as NamerData;
+      const [gender, ...rest] = d.placeholder.replace(/\s*\d+$/, "").split(" ");
+      const next = await nextPlaceholder({ gender, species: rest.join(" ") || null });
+      await OBR.scene.items.updateItems([it.id], (its) => {
+        for (const x of its) {
+          x.metadata[NAMER_KEY] = { ...d, placeholder: next };
+          if (d.hidden) applyDisplayName(x, next);
+        }
+      });
+    }
+    if (!changed.length) return;
+    const party = new Set((await getMappings()).map((m) => m.itemId));
+    const { people } = await loadCast();
+    for (const it of changed) {
+      if (party.has(it.id)) continue;
+      const p = clearMatch(people, it.name);
+      if (!p) continue;
+      const d = it.metadata[NAMER_KEY] as NamerData | undefined;
+      await linkTokens([it.id], p, true);
+    }
+  } catch (err) {
+    console.warn("[abelon] linking tokens as you go:", err);
+  } finally {
+    autoBusy = false;
+  }
+}
+
 let started = false;
 export async function startCastHost() {
   if (started) return;
@@ -121,9 +182,12 @@ export async function startCastHost() {
   if ((await OBR.player.getRole()) !== "GM") return;
   menus();
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let linkTimer: ReturnType<typeof setTimeout> | undefined;
   const soon = () => {
     clearTimeout(timer);
     timer = setTimeout(() => void drawTags(), 200);
+    clearTimeout(linkTimer);
+    linkTimer = setTimeout(() => void autoLink(), 500); // after a drag or a rename settles
   };
   let listening = false;
   const hook = async () => {
@@ -135,6 +199,9 @@ export async function startCastHost() {
     soon();
   };
   OBR.scene.onReadyChange((ready) => {
+    // a new scene: what's already in it is a snapshot, not something just dropped in
+    seenNames.clear();
+    primed = false;
     if (ready) void hook();
   });
   void hook();
