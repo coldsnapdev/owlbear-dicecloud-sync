@@ -1,6 +1,7 @@
 import { addToCombat, fallenOf, setFallen, ALLY_KEY, applyStatBlock, endCombat, getState, onStandby, patchState, removeFromStandby, step } from "./combat";
 import { mirrorStatuses, startCombatHost } from "./combatHost";
 import { startCastHost } from "./castHost";
+import { startViewHost } from "./viewHost";
 import { linkedPerson, loadCast } from "./cast";
 import { BUILD } from "./build";
 import { refreshPages, REFRESH_CHANNEL } from "./refresh";
@@ -688,6 +689,7 @@ OBR.onReady(async () => {
   listenForRefresh();
   startCombatHost().catch((err) => log("Combat strip failed to start:", err));
   startCastHost().catch((err) => log("Cast menus failed to start:", err));
+  startViewHost().catch((err) => log("Default view failed to start:", err));
 
   if (await OBR.scene.isReady()) {
     startPolling();
