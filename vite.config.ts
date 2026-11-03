@@ -25,6 +25,7 @@ export default defineConfig({
         dmPanel: resolve(__dirname, "dm-panel.html"),
         dice: resolve(__dirname, "dice.html"),
         strip: resolve(__dirname, "strip.html"),
+        castPicker: resolve(__dirname, "cast-picker.html"),
       },
     },
   },

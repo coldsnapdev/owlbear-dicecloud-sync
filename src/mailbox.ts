@@ -40,6 +40,7 @@ export interface RosterEntry {
   ally?: boolean;
   standby?: boolean;
   fallen?: "dead" | "down";
+  statBlock?: string;
 }
 
 export interface RosterFile {
@@ -88,7 +89,7 @@ export function rosterFingerprint(entries: RosterEntry[]): string {
   return JSON.stringify(entries);
 }
 
-function encode(text: string): string {
+export function encode(text: string): string {
   const bytes = new TextEncoder().encode(text);
   let bin = "";
   bytes.forEach((b) => (bin += String.fromCharCode(b)));
@@ -168,13 +169,13 @@ const ASSIGNMENTS_URL = `https://api.github.com/repos/${REPO}/contents/${ASSIGNM
 
 export type Assignments = Record<string, string>; // itemId -> bestiary entry id
 
-function headers(token?: string): Record<string, string> {
+export function headers(token?: string): Record<string, string> {
   const h: Record<string, string> = { Accept: "application/vnd.github+json" };
   if (token) h.Authorization = `Bearer ${token}`;
   return h;
 }
 
-async function readJson<T>(url: string, token?: string): Promise<{ data: T; sha: string } | undefined> {
+export async function readJson<T>(url: string, token?: string): Promise<{ data: T; sha: string } | undefined> {
   const r = await fetch(`${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`, { headers: headers(token), cache: "no-store" });
   if (r.status === 404) return undefined;
   if (!r.ok) throw new Error(`GitHub returned ${r.status}`);

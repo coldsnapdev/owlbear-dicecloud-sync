@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>This is…</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
+    <style>
+      :root { --bg: #1d1712; --panel: #2a2119; --ink: #efe3c8; --soft: #a8967a; --faint: #75674f; --line: #4a3c2a; --gold: #e2c27f; --red: #e0533d; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 15px/1.35 "Crimson Pro", Georgia, serif; }
+      body { display: flex; flex-direction: column; padding: 14px 16px 12px; gap: 10px; }
+      h1 { margin: 0; font: 700 14px/1 Cinzel, serif; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
+      .sub { color: var(--soft); font-style: italic; font-size: 13px; margin-top: -6px; }
+      input, select { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; min-width: 0; }
+      input:focus, select:focus { outline: none; border-color: var(--gold); }
+      #q { width: 100%; font-size: 16px; }
+      .list { flex: 1; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; }
+      .p { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 7px 10px; border-bottom: 1px solid rgba(74,60,42,.5); cursor: pointer; }
+      .p:hover, .p.sel { background: rgba(226,194,127,.12); }
+      .p b { font: 600 15px "Crimson Pro", serif; }
+      .p .aka { color: var(--faint); font-size: 12px; margin-left: 4px; }
+      .p .who { grid-column: 1; color: var(--soft); font-size: 13px; }
+      .p .blk { grid-row: 1 / span 2; grid-column: 2; align-self: center; font-size: 12px; color: var(--soft); text-align: right; }
+      .p .new { font: 600 9px/1 Cinzel, serif; letter-spacing: .1em; color: var(--gold); border: 1px solid var(--gold); border-radius: 3px; padding: 1px 3px; margin-left: 5px; vertical-align: 2px; }
+      .empty { padding: 14px; color: var(--soft); font-style: italic; }
+      .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      label.chk { display: inline-flex; gap: 6px; align-items: center; color: var(--soft); font-size: 14px; cursor: pointer; }
+      button { font: 700 10px/1 Cinzel, serif; letter-spacing: .08em; text-transform: uppercase; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--soft); cursor: pointer; }
+      button:hover { color: var(--ink); border-color: var(--gold); }
+      button.go { color: #1b140c; background: var(--gold); border-color: var(--gold); }
+      button:disabled { opacity: .45; cursor: default; }
+      details { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+      summary { cursor: pointer; font: 700 10px/1.6 Cinzel, serif; letter-spacing: .1em; text-transform: uppercase; color: var(--soft); }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+      .grid .full { grid-column: 1 / -1; display: flex; gap: 6px; }
+      .grid .full input { flex: 1; }
+      .msg { font-size: 13px; color: var(--soft); min-height: 1em; }
+      .msg.warn { color: var(--red); }
+    </style>
+  </head>
+  <body>
+    <h1>This is…</h1>
+    <div class="sub" id="sub"></div>
+    <input id="q" type="search" placeholder="Search the cast by name, role or species" autocomplete="off" />
+    <div class="list" id="list"><div class="empty">Loading the cast…</div></div>
+    <details id="new">
+      <summary>Someone new</summary>
+      <div class="grid">
+        <div class="full"><input id="n-name" placeholder="Full name" /><button id="n-surname" type="button" title="Suggest a surname nobody in the cast shares">Surname</button></div>
+        <select id="n-gender"><option>Male</option><option>Female</option><option>Non-binary</option><option>Unknown</option></select>
+        <input id="n-species" list="species" placeholder="Species" value="Human" />
+        <select id="n-block" class="full"></select>
+      </div>
+    </details>
+    <div class="row">
+      <label class="chk"><input type="checkbox" id="hide" checked /> Hide the name from players</label>
+      <span style="flex:1"></span>
+      <button id="cancel" type="button">Cancel</button>
+      <button id="go" class="go" type="button" disabled>Choose</button>
+    </div>
+    <div class="msg" id="msg"></div>
+    <datalist id="species"><option>Human</option><option>Elf</option><option>Dwarf</option><option>Halfling</option><option>Gnome</option><option>Dragonborn</option><option>Orc</option><option>Tiefling</option><option>Goliath</option><option>Half-elf</option><option>Half-orc</option><option>Aasimar</option></datalist>
+    <script type="module" src="/src/castPicker.ts"></script>
+  </body>
+</html>

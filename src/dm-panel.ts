@@ -209,7 +209,7 @@ let round = 0;
 let autoOpened: string | undefined;
 let scrollToTurn = false;
 let lastLiveFp = "";
-const asEntry = (c: LiveCombatant): RosterEntry => ({ itemId: c.itemId, name: c.name, realName: c.realName, initiative: c.initiative, ac: c.ac, hp: c.hp, maxHp: c.maxHp, tempHp: c.tempHp, hasInit: c.hasInit, visible: c.visible, dex: c.dex, sheet: c.sheet, ally: c.ally, standby: c.standby, fallen: c.fallen });
+const asEntry = (c: LiveCombatant): RosterEntry => ({ itemId: c.itemId, name: c.name, realName: c.realName, initiative: c.initiative, ac: c.ac, hp: c.hp, maxHp: c.maxHp, tempHp: c.tempHp, hasInit: c.hasInit, visible: c.visible, dex: c.dex, sheet: c.sheet, ally: c.ally, standby: c.standby, fallen: c.fallen, statBlock: c.statBlock });
 onOwlbear((m) => {
   if (m.kind === "reload") {
     // the extension was just updated: fetch this page fresh and reload (the link comes back by itself)
@@ -354,6 +354,9 @@ function entryFor(c: RosterEntry): { entry?: BestiaryEntry; manual: boolean } {
     const e = bestiary.find((b) => b.id === chosen);
     if (e) return { entry: e, manual: true };
   }
+  // the stat block of the person the token is linked to in the cast
+  const cast = c.statBlock ? bestiary.find((b) => b.id === c.statBlock) : undefined;
+  if (cast) return { entry: cast, manual: false };
   return { entry: autoMatch(c), manual: false };
 }
 

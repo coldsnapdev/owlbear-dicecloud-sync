@@ -1,5 +1,7 @@
 import { addToCombat, fallenOf, setFallen, ALLY_KEY, applyStatBlock, endCombat, getState, onStandby, patchState, removeFromStandby, step } from "./combat";
 import { mirrorStatuses, startCombatHost } from "./combatHost";
+import { startCastHost } from "./castHost";
+import { linkedPerson, loadCast } from "./cast";
 import { BUILD } from "./build";
 import { refreshPages, REFRESH_CHANNEL } from "./refresh";
 import { LINK_STATUS_KEY, LIVE_STATUS_KEY, RELAY_STATUS_KEY, listenLocal, type HpMessage, type HpResult, type LinkEnvelope, type LiveCombatant, type LiveMessage, type OwlbearMessage, liveCode, liveTopic, subscribeLive, type LiveSubscription } from "./live";
@@ -367,11 +369,18 @@ async function pushRoster(force = false) {
   if (!panelWindow || !(await OBR.scene.isReady())) return;
   const items = await OBR.scene.items.getItems();
   const linked = new Set((await getMappings()).map((m) => m.itemId));
+  // the stat block of the person each token is (the panel shows it unless you've picked another)
+  const cast = await loadCast().catch(() => ({ people: [] }));
+  const castBlock = (id: string) => {
+    const it = items.find((i) => i.id === id);
+    return it ? linkedPerson(cast.people, it)?.statBlock ?? undefined : undefined;
+  };
   const combatants: LiveCombatant[] = getCombatRoster(items).map((c) => ({
     itemId: c.itemId, name: c.name, realName: c.realName, initiative: c.initiative,
     ac: c.ac, hp: c.currentHP, maxHp: c.maxHP, tempHp: c.tempHP,
     sheet: linked.has(c.itemId) || undefined, multipliers: sheetMultipliers.get(c.itemId),
     ...extra(items.find((i) => i.id === c.itemId)),
+    statBlock: castBlock(c.itemId),
   }));
   // tokens on standby: on the panel, but not in initiative
   for (const c of getCombatRoster(items, onStandby)) {
@@ -380,6 +389,7 @@ async function pushRoster(force = false) {
       ac: c.ac, hp: c.currentHP, maxHp: c.maxHP, tempHp: c.tempHP,
       sheet: linked.has(c.itemId) || undefined, multipliers: sheetMultipliers.get(c.itemId),
       ...extra(items.find((i) => i.id === c.itemId)),
+      statBlock: castBlock(c.itemId),
       hasInit: undefined,
       standby: true,
     });
@@ -677,6 +687,7 @@ OBR.onReady(async () => {
   listenForDice();
   listenForRefresh();
   startCombatHost().catch((err) => log("Combat strip failed to start:", err));
+  startCastHost().catch((err) => log("Cast menus failed to start:", err));
 
   if (await OBR.scene.isReady()) {
     startPolling();

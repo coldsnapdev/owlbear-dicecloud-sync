@@ -8,6 +8,7 @@ import { addToCombat, addToStandby, removeFromStandby, STANDBY_KEY, FALLEN_KEY, 
 import { FORGE_KEYS } from "./forge";
 import { GM_STATUS_KEY } from "./stripKeys";
 import { BUILD } from "./build";
+import { linkedPerson, loadCast } from "./cast";
 import { getGitHubToken, loadAssignments, loadBestiary, type Assignments, type BestiaryEntry } from "./mailbox";
 
 const STRIP_ID = "com.abelon.combat/strip";
@@ -118,13 +119,15 @@ async function fillFromBestiary(items: Item[]) {
   const bare = items.filter((i) => !((num(i.metadata[FORGE_KEYS.maxHP]) ?? 0) > 0));
   if (!bare.length) return;
   const token = getGitHubToken();
-  const [bestiary, assignments, linked] = await Promise.all([loadBestiary(token), loadAssignments(token).catch(() => ({}) as Assignments), partyIds()]);
+  const [bestiary, assignments, linked, cast] = await Promise.all([loadBestiary(token), loadAssignments(token).catch(() => ({}) as Assignments), partyIds(), loadCast().catch(() => ({ people: [] }))]);
   const byName = new Map(bestiary.map((e) => [norm(e.name), e]));
   for (const it of bare) {
     if (linked.has(it.id)) continue; // party: their sheet fills these
     const chosen = assignments[it.id] && bestiary.find((e) => e.id === assignments[it.id]);
     const real = (it.metadata["com.abelon.namer/data"] as { realName?: string } | undefined)?.realName;
-    let entry: BestiaryEntry | undefined = chosen || undefined;
+    // the panel's choice, then the stat block of the person the token is, then by name
+    const person = linkedPerson(cast.people, it);
+    let entry: BestiaryEntry | undefined = chosen || (person?.statBlock ? bestiary.find((e) => e.id === person.statBlock) : undefined);
     for (const n of [real, it.name]) {
       if (entry || !n) continue;
       entry = byName.get(norm(n)) ?? byName.get(norm(n.replace(/\s*\d+$/, "")));

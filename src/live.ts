@@ -146,6 +146,8 @@ export interface LiveCombatant {
   ally?: boolean;
   /** on the panel but not in initiative (no HP bar, not on the strip) */
   standby?: boolean;
+  /** the bestiary id of the cast member this token is linked to */
+  statBlock?: string;
   /** dead (tipped over, skipped) or down (a party member at 0 HP) */
   fallen?: "dead" | "down";
   /** from the sheet: damage type -> 0 / 0.5 / 2 */
