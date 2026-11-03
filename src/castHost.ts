@@ -3,7 +3,8 @@
 // GM's own screen shows.
 import OBR, { buildLabel, type Item } from "@owlbear-rodeo/sdk";
 import { BUILD } from "./build";
-import { applyDisplayName, clearMatch, linkTokens, loadCast, mirrorExtras, NAMER_KEY, nextPlaceholder, setHidden, type NamerData } from "./cast";
+import { applyDisplayName, clearMatch, linkedPerson, linkTokens, loadCast, mirrorExtras, NAMER_KEY, nextPlaceholder, search, setHidden, type NamerData, type Person } from "./cast";
+import { getGitHubToken, loadBestiary } from "./mailbox";
 import { getMappings } from "./config";
 import { PICKER_ID } from "./castPicker.ids";
 
@@ -50,6 +51,18 @@ function menus() {
   });
 }
 
+// names of the bestiary's creatures and generic blocks ("Rot Skulker", "Commoner (CR 1)"), so a
+// "Rot Skulker 4" token isn't flagged as someone missing from the cast
+let generics: { at: number; names: Set<string> } | undefined;
+async function genericNames(): Promise<Set<string>> {
+  if (generics && Date.now() - generics.at < 300_000) return generics.names;
+  const [best, cast] = await Promise.all([loadBestiary(getGitHubToken()).catch(() => []), loadCast().catch(() => ({ people: [] as Person[], generics: [] as string[] }))]);
+  const people = new Set(cast.people.map((p) => p.name.toLowerCase()));
+  const names = new Set(best.filter((b) => !people.has(b.name.toLowerCase())).map((b) => b.name.toLowerCase()));
+  generics = { at: Date.now(), names };
+  return names;
+}
+
 // --- The GM's real-name tags ---------------------------------------------------------------
 // Local items: drawn on this screen only, never in the scene the players load.
 const TAG_KEY = "com.abelon.cast/tag";
@@ -64,14 +77,29 @@ async function drawTags() {
   try {
     if (!(await OBR.scene.isReady())) return;
     const [items, mine, dpi] = await Promise.all([OBR.scene.items.getItems((i) => i.layer === "CHARACTER"), OBR.scene.local.getItems((i) => !!i.metadata[TAG_KEY]), OBR.scene.grid.getDpi()]);
-    const want = items.filter((i) => (i.metadata[NAMER_KEY] as NamerData | undefined)?.hidden && (i.metadata[NAMER_KEY] as NamerData).realName);
+    // gold: a disguised token's real name. Grey: a token that isn't anyone in the cast yet,
+    // either because its name could mean several people or because nobody matches.
+    const [{ people }, maps, generic] = await Promise.all([loadCast().catch(() => ({ people: [] as Person[] })), getMappings().catch(() => []), genericNames()]);
+    const party = new Set(maps.map((m) => m.itemId));
+    const tags: { t: Item; text: string; unsure: boolean }[] = [];
+    for (const i of items) {
+      const d = i.metadata[NAMER_KEY] as NamerData | undefined;
+      if (d?.hidden && d.realName) {
+        tags.push({ t: i, text: d.realName, unsure: false });
+        continue;
+      }
+      if (d || party.has(i.id) || linkedPerson(people, i)) continue;
+      const base = i.name.replace(/\s*\d+$/, "").trim().toLowerCase();
+      if (!base || generic.has(base)) continue; // creatures and generic stat blocks aren't people
+      const hits = search(people, i.name).filter((p) => [p.name, ...(p.aka ?? [])].some((n) => n.toLowerCase() === base));
+      tags.push({ t: i, text: hits.length > 1 ? `Which ${i.name.replace(/\s*\d+$/, "")}? (${hits.length})` : "Not in the cast", unsure: true });
+    }
     const keep = new Set<string>();
     const add: Item[] = [];
-    for (const t of want) {
-      const real = (t.metadata[NAMER_KEY] as NamerData).realName;
+    for (const { t, text: real, unsure } of tags) {
       const b = await OBR.scene.items.getItemBounds([t.id]);
       const at = { x: Math.round(b.center.x), y: Math.round(b.min.y + dpi * 0.04) };
-      const sig = JSON.stringify([real, at, Math.round(dpi)]);
+      const sig = JSON.stringify([real, unsure, at, Math.round(dpi)]);
       const have = mine.find((m) => (m.metadata[TAG_KEY] as { parent: string; sig: string }).parent === t.id && (m.metadata[TAG_KEY] as { sig: string }).sig === sig);
       if (have) {
         keep.add(have.id);
@@ -89,9 +117,9 @@ async function drawTags() {
           .fontSize(Math.max(14, Math.round(dpi * 0.2)))
           .padding(Math.round(dpi * 0.05))
           .cornerRadius(Math.round(dpi * 0.08))
-          .fillColor("#1b140c")
-          .backgroundColor("#e2c27f")
-          .backgroundOpacity(0.92)
+          .fillColor(unsure ? "#efe3c8" : "#1b140c")
+          .backgroundColor(unsure ? "#4a4038" : "#e2c27f")
+          .backgroundOpacity(unsure ? 0.85 : 0.92)
           .attachedTo(t.id)
           .disableAttachmentBehavior(["ROTATION", "SCALE", "COPY"])
           .layer("POPOVER")
