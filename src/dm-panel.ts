@@ -1509,10 +1509,10 @@ function render() {
   };
   const fighting = roster.combatants.filter((c) => !c.standby);
   const standing = roster.combatants.filter((c) => c.standby).sort((a, b) => a.name.localeCompare(b.name));
-  const tiles = (fighting.length ? `<div class="pc-bar">${fighting.map(pill).join("")}</div>` : "")
-    + (standing.length ? `<div class="sb-head"><span>On the panel, not in initiative</span>${standing.length > 1 ? `<button type="button" class="pc-join" data-join-all="1">⚔ All join</button>` : ""}</div><div class="pc-bar standby-bar">${standing.map(pill).join("")}</div>` : "");
-  // cards follow the same order: fighters by initiative, then standby
-  app.innerHTML = combatBar() + tiles + targetBar() + resolveCard() + [...fighting, ...standing].filter((c) => open.has(c.itemId)).map(card).join("");
+  const standbyTiles = standing.length ? `<div class="sb-head"><span>On the panel, not in initiative</span>${standing.length > 1 ? `<button type="button" class="pc-join" data-join-all="1">⚔ All join</button>` : ""}</div><div class="pc-bar standby-bar">${standing.map(pill).join("")}</div>` : "";
+  const fightTiles = fighting.length ? `${standing.length ? `<div class="sb-head"><span>In initiative</span></div>` : ""}<div class="pc-bar">${fighting.map(pill).join("")}</div>` : "";
+  // standby first, then the fight; cards follow the same order
+  app.innerHTML = standbyTiles + combatBar() + fightTiles + targetBar() + resolveCard() + [...standing, ...fighting].filter((c) => open.has(c.itemId)).map(card).join("");
   const sendCombat = (op: "join" | "unstage", ids: string[]) =>
     fastSend({ kind: "combat", id: crypto.randomUUID(), at: new Date().toISOString(), op, values: Object.fromEntries(ids.map((i) => [i, 1])) });
   app.querySelectorAll<HTMLButtonElement>("[data-join]").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); sendCombat("join", [b.dataset.join!]); }));
