@@ -99,7 +99,7 @@ async function drawTags() {
     for (const { t, text: real, unsure } of tags) {
       const b = await OBR.scene.items.getItemBounds([t.id]);
       const at = { x: Math.round(b.center.x), y: Math.round(b.min.y + dpi * 0.04) };
-      const sig = JSON.stringify([real, unsure, at, Math.round(dpi)]);
+      const sig = JSON.stringify([2, real, unsure, at, Math.round(dpi)]); // 2: the smaller size
       const have = mine.find((m) => (m.metadata[TAG_KEY] as { parent: string; sig: string }).parent === t.id && (m.metadata[TAG_KEY] as { sig: string }).sig === sig);
       if (have) {
         keep.add(have.id);
@@ -110,13 +110,12 @@ async function drawTags() {
           .plainText(real)
           .position(at)
           .pointerDirection("DOWN")
-          .pointerWidth(Math.round(dpi * 0.12))
-          .pointerHeight(Math.round(dpi * 0.06))
-          .fontFamily("Crimson Pro, Georgia, serif")
-          .fontWeight(700)
-          .fontSize(Math.max(14, Math.round(dpi * 0.2)))
-          .padding(Math.round(dpi * 0.05))
-          .cornerRadius(Math.round(dpi * 0.08))
+          .pointerWidth(Math.round(dpi * 0.06))
+          .pointerHeight(Math.round(dpi * 0.03))
+          .fontWeight(600)
+          .fontSize(Math.max(8, Math.round(dpi * 0.085)))
+          .padding(Math.round(dpi * 0.025))
+          .cornerRadius(Math.round(dpi * 0.04))
           .fillColor(unsure ? "#efe3c8" : "#1b140c")
           .backgroundColor(unsure ? "#4a4038" : "#e2c27f")
           .backgroundOpacity(unsure ? 0.85 : 0.92)
