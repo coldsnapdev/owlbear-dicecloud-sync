@@ -4,6 +4,7 @@ import { LINK_STATUS_KEY, LIVE_STATUS_KEY, RELAY_STATUS_KEY } from "./live";
 import { clearMatch, linkedPerson, linkTokens, loadCast, NAMER_KEY, setHidden, type NamerData } from "./cast";
 import { CARD_CHANNEL, CARD_KEY, type CardMeta } from "./cardShared";
 import { FX_OFF_KEY, FX_PREVIEW_KEY } from "./fxShared";
+import { CLOCK_HIDE_KEY } from "./clock";
 import OBR, { type Item } from "@owlbear-rodeo/sdk";
 import {
   diceCloudLogin,
@@ -58,9 +59,10 @@ app.innerHTML = `
   <section class="block">
     <h2>Scene</h2>
     <div class="row"><input id="card-title" type="text" placeholder="Title card, e.g. The Shallow Tuber" /></div>
-    <div class="row"><input id="card-time" type="text" placeholder="Time of day, e.g. evening" /><label class="hint"><input id="card-date" type="checkbox" checked /> Date</label></div>
+    <div class="row"><input id="card-time" type="text" placeholder="Time of day (blank: from the clock)" /><label class="hint"><input id="card-date" type="checkbox" checked /> Date &amp; time</label></div>
     <div class="row party-row"><button id="card-save" type="button">Save</button><button id="card-show" class="secondary" type="button">Show everyone now</button><span class="status" id="card-status"></span></div>
     <div class="row party-row"><label class="hint"><input id="fx-on" type="checkbox" /> Screen effects for players</label><label class="hint"><input id="fx-preview" type="checkbox" /> Feel the selected token's</label></div>
+    <div class="row party-row"><label class="hint"><input id="clock-on" type="checkbox" /> Clock on screen out of combat</label></div>
   </section>
 
   <details class="settings">
@@ -102,7 +104,9 @@ document.getElementById("party-save")!.addEventListener("click", async () => {
 });
 // --- Scene: the title card and screen effects ----------------------------------------------
 async function loadSceneBits() {
-  const fxOff = !!(await OBR.room.getMetadata())[FX_OFF_KEY];
+  const roomMeta = await OBR.room.getMetadata();
+  (document.getElementById("clock-on") as HTMLInputElement).checked = !roomMeta[CLOCK_HIDE_KEY];
+  const fxOff = !!roomMeta[FX_OFF_KEY];
   (document.getElementById("fx-on") as HTMLInputElement).checked = !fxOff;
   try {
     (document.getElementById("fx-preview") as HTMLInputElement).checked = localStorage.getItem(FX_PREVIEW_KEY) === "1";
@@ -138,6 +142,9 @@ document.getElementById("card-show")!.addEventListener("click", async () => {
   if (!c.title) return cardSay("Give it a title first.", "error");
   await OBR.broadcast.sendMessage(CARD_CHANNEL, c, { destination: "ALL" });
   cardSay("Showing.", "ok");
+});
+document.getElementById("clock-on")!.addEventListener("change", async (e) => {
+  await OBR.room.setMetadata({ [CLOCK_HIDE_KEY]: (e.target as HTMLInputElement).checked ? undefined : true });
 });
 document.getElementById("fx-on")!.addEventListener("change", async (e) => {
   await OBR.room.setMetadata({ [FX_OFF_KEY]: (e.target as HTMLInputElement).checked ? undefined : true });

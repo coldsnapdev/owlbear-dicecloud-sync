@@ -112,7 +112,15 @@ export interface CombatMessage {
   /** op "init": itemId -> initiative (null clears it); op "ally": itemId -> 1 (allied) or null */
   values?: Record<string, number | null>;
 }
-export type LiveMessage = PanelCommand | StatusesMessage | TargetsMessage | RosterRequest | HpMessage | CombatMessage;
+/** Panel → Owlbear: set the in-game clock, or move it on by some minutes. */
+export interface ClockMessage {
+  kind: "clock";
+  id: string;
+  at: string;
+  set?: { year: number; month: number; day: number; min: number };
+  add?: number;
+}
+export type LiveMessage = PanelCommand | StatusesMessage | TargetsMessage | RosterRequest | HpMessage | CombatMessage | ClockMessage;
 export interface HpResult {
   kind: "hp-result";
   ref: string; // the HpMessage id
@@ -158,6 +166,7 @@ export type OwlbearMessage =
   | { kind: "roster"; combatants: LiveCombatant[]; forgeInfo?: string; turn?: string; round?: number }
   | { kind: "selection"; ids: string[] }
   | { kind: "reload" }
+  | { kind: "clock"; clock?: { year: number; month: number; day: number; min: number } }
   | HpResult;
 
 // "loopback" tells Chrome/Opera up front that this goes to this computer (local network access)

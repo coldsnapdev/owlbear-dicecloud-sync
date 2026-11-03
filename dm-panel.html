@@ -49,6 +49,17 @@
       #update-roster:hover { filter: brightness(1.08); }
       #update-roster:active { transform: translateY(2px); box-shadow: 0 0 0 #5c4219, 0 2px 6px rgba(0,0,0,.35); }
       #update-roster:disabled { opacity: .6; cursor: default; }
+      #clock-ctl { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+      .ck-now { font: 600 14px "Crimson Pro", serif; color: var(--ink); background: none; border: 1px solid var(--line); border-radius: 6px; padding: 4px 9px; cursor: pointer; white-space: nowrap; }
+      .ck-now b { font-family: Cinzel, serif; font-size: 13px; color: var(--brass, #c9a25e); margin: 0 3px; }
+      .ck-now small { color: var(--ink-soft); font-style: italic; }
+      .ck-now:hover { border-color: var(--brass, #c9a25e); }
+      .ck-b { font: 600 12px "Crimson Pro", serif; color: var(--ink-soft); background: rgba(0,0,0,.25); border: 1px solid var(--line); border-radius: 5px; padding: 4px 7px; cursor: pointer; }
+      .ck-b:hover { color: var(--ink); border-color: var(--brass, #c9a25e); }
+      .ck-b.go { color: #1b140c; background: #e2c27f; border-color: #e2c27f; }
+      .ck-edit { display: inline-flex; gap: 4px; align-items: center; }
+      .ck-edit input, .ck-edit select { font: 600 13px "Crimson Pro", serif; color: var(--ink); background: rgba(0,0,0,.3); border: 1px solid var(--line); border-radius: 5px; padding: 3px 5px; }
+      #ck-day { width: 48px; } #ck-year { width: 72px; }
       #roster-meta { font-size: 14px; color: var(--ink-soft); font-style: italic; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       #roster-meta.warn, .warn { color: var(--blood); }
 
@@ -383,6 +394,7 @@
         <h1>Combat</h1>
         <button id="update-roster" type="button">Update Roster</button>
         <span id="roster-meta"></span>
+        <span id="clock-ctl"></span>
         <label class="switch" title="Public rolls post to Discord; private rolls stay in this panel">
           <input id="public-toggle" type="checkbox" checked />
           <span class="track"><span class="knob"></span></span>

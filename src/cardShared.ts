@@ -1,3 +1,5 @@
+import { dateText, partOfDay, type Clock } from "./clock";
+
 export const CARD_ID = "com.abelon.scene/card";
 export const CARD_KEY = "com.abelon.scene/card"; // scene metadata: { title, time, date }
 export const CARD_CHANNEL = "com.abelon.scene/card-show";
@@ -22,7 +24,11 @@ export async function almanacDate(): Promise<string | undefined> {
     return undefined;
   }
 }
-export async function subtitleFor(c: CardMeta): Promise<string> {
-  const date = c.date ? await almanacDate() : undefined;
-  return [date, c.time?.trim()].filter(Boolean).join(" · ");
+/** "27th Saeleth · evening": the live clock's date and part of the day (the Almanac's date if the
+ * clock hasn't been started); a typed time of day overrides the clock's. */
+export async function subtitleFor(c: CardMeta, clock?: Clock): Promise<string> {
+  if (!c.date) return c.time?.trim() ?? "";
+  const date = clock ? dateText(clock) : await almanacDate();
+  const time = c.time?.trim() || (clock ? partOfDay(clock.min).toLowerCase() : "");
+  return [date, time].filter(Boolean).join(" · ");
 }

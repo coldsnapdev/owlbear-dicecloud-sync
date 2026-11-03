@@ -4,6 +4,8 @@ import { startCastHost } from "./castHost";
 import { startViewHost } from "./viewHost";
 import { startFxHost } from "./fxHost";
 import { startCardHost } from "./cardHost";
+import { startClockHost } from "./clockHost";
+import { addMinutes, CLOCK_KEY, clockFromAlmanac, validClock, type Clock } from "./clock";
 import { linkedPerson, loadCast } from "./cast";
 import { BUILD } from "./build";
 import { refreshPages, REFRESH_CHANNEL } from "./refresh";
@@ -273,6 +275,13 @@ function handleLiveMessage(msg: LiveMessage) {
   }
   if (msg.kind === "roster-request") {
     pushRoster(true).catch((err) => log("Couldn't send the roster:", err));
+    sendClock().catch(() => {});
+    return;
+  }
+  if (msg.kind === "clock") {
+    if (doneCommands.has(msg.id)) return;
+    doneCommands.add(msg.id);
+    changeClock(msg.set, msg.add).catch((err) => log("Couldn't change the clock:", err));
     return;
   }
   if (msg.kind === "targets") {
@@ -285,6 +294,29 @@ function handleLiveMessage(msg: LiveMessage) {
   doneCommands.add(msg.id);
   runCommand(msg).catch((err) => log("Panel command failed:", err));
 }
+
+// --- The in-game clock (room-wide; the panel moves it on) -------------------------------------
+async function readClock(): Promise<Clock | undefined> {
+  const c = (await OBR.room.getMetadata())[CLOCK_KEY];
+  return validClock(c) ? c : undefined;
+}
+async function changeClock(set?: Clock, add?: number) {
+  let c = set && validClock(set) ? set : (await readClock()) ?? (await clockFromAlmanac());
+  if (add) c = addMinutes(c, add);
+  await OBR.room.setMetadata({ [CLOCK_KEY]: c });
+}
+async function sendClock() {
+  sendToPanel({ kind: "clock", clock: await readClock() });
+}
+let clockSig = "";
+OBR.onReady(() => {
+  OBR.room.onMetadataChange((m) => {
+    const sig = JSON.stringify(m[CLOCK_KEY] ?? null);
+    if (sig === clockSig) return;
+    clockSig = sig;
+    sendClock().catch(() => {});
+  });
+});
 
 // --- Targets ------------------------------------------------------------------------------
 // Earlier builds drew target rings as synced scene items; they're now local markers drawn on
@@ -694,6 +726,7 @@ OBR.onReady(async () => {
   startViewHost().catch((err) => log("Default view failed to start:", err));
   startFxHost().catch((err) => log("Screen effects failed to start:", err));
   startCardHost().catch((err) => log("Title cards failed to start:", err));
+  startClockHost().catch((err) => log("The on-screen clock failed to start:", err));
 
   if (await OBR.scene.isReady()) {
     startPolling();

@@ -5,6 +5,7 @@
 // manual, lets the DM roll from the stat block, and posts the results to
 // Discord with flavour text (and full spell text) for the table.
 import { BUILD } from "./build";
+import { dateText, MONTHS, partOfDay, timeText, validClock, type Clock } from "./clock";
 import { liveBuild } from "./refresh";
 import { liveCode, liveTopic, onOwlbear, owlbearBuild, owlbearWindow, publishLive, relayStatus, sendDirect, sendLocal, type HpMessage, type HpResult, type LiveCombatant, type LiveMessage } from "./live";
 import {
@@ -212,7 +213,62 @@ let autoOpened: string | undefined;
 let scrollToTurn = false;
 let lastLiveFp = "";
 const asEntry = (c: LiveCombatant): RosterEntry => ({ itemId: c.itemId, name: c.name, realName: c.realName, initiative: c.initiative, ac: c.ac, hp: c.hp, maxHp: c.maxHp, tempHp: c.tempHp, hasInit: c.hasInit, visible: c.visible, dex: c.dex, sheet: c.sheet, ally: c.ally, standby: c.standby, fallen: c.fallen, statBlock: c.statBlock });
+// --- The in-game clock ----------------------------------------------------------------------
+// Lives in the Owlbear room; the panel shows it and moves it on. Everyone's on-screen clock and
+// the scene title cards read it.
+let gameClock: Clock | undefined;
+let clockEditing = false;
+const clockEl = $<HTMLElement>("clock-ctl");
+function sendClock(m: { set?: Clock; add?: number }) {
+  fastSend({ kind: "clock", id: crypto.randomUUID(), at: new Date().toISOString(), ...m }).then((ok) => {
+    if (!ok) {
+      meta.textContent = "Clock not changed: Owlbear isn't linked";
+      meta.className = "warn";
+    }
+  });
+}
+function renderClock() {
+  if (clockEditing && gameClock) {
+    const c = gameClock;
+    clockEl.innerHTML = `<span class="ck-edit">
+      <input id="ck-day" type="number" min="1" max="40" value="${c.day}" />
+      <select id="ck-month">${MONTHS.map((m, i) => `<option value="${i + 1}" ${i + 1 === c.month ? "selected" : ""}>${m}</option>`).join("")}</select>
+      <input id="ck-year" type="number" value="${c.year}" />
+      <input id="ck-time" type="time" value="${timeText(c)}" />
+      <button type="button" class="ck-b go" data-ck="save">Set</button><button type="button" class="ck-b" data-ck="cancel">✕</button></span>`;
+  } else if (gameClock) {
+    clockEl.innerHTML = `<button type="button" class="ck-now" data-ck="edit" title="Click to set the date and time">${dateText(gameClock)} <b>${timeText(gameClock)}</b> <small>${partOfDay(gameClock.min)}</small></button>
+      <button type="button" class="ck-b" data-ck="10" title="10 minutes">+10m</button><button type="button" class="ck-b" data-ck="60" title="An hour">+1h</button><button type="button" class="ck-b" data-ck="480" title="A long rest">+8h</button><button type="button" class="ck-b" data-ck="1440" title="A day">+1d</button>`;
+  } else {
+    clockEl.innerHTML = `<button type="button" class="ck-b" data-ck="start" title="Start the clock at the Almanac's date, 08:00">Start the clock</button>`;
+  }
+}
+clockEl.addEventListener("click", (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>("[data-ck]");
+  if (!b) return;
+  const k = b.dataset.ck!;
+  if (k === "edit") clockEditing = true;
+  else if (k === "cancel") clockEditing = false;
+  else if (k === "start") sendClock({});
+  else if (k === "save") {
+    const v = (id: string) => (document.getElementById(id) as HTMLInputElement).value;
+    const [hh, mm] = v("ck-time").split(":").map(Number);
+    const set = { year: Number(v("ck-year")), month: Number(v("ck-month")), day: Math.max(1, Math.min(40, Number(v("ck-day")))), min: (hh || 0) * 60 + (mm || 0) };
+    if (validClock(set)) sendClock({ set });
+    clockEditing = false;
+  } else sendClock({ add: Number(k) });
+  renderClock();
+});
+renderClock();
+
 onOwlbear((m) => {
+  if (m.kind === "clock") {
+    const was = gameClock;
+    gameClock = m.clock && validClock(m.clock) ? m.clock : undefined;
+    if (was && gameClock && JSON.stringify(was) !== JSON.stringify(gameClock)) record("note", `Time: ${dateText(gameClock)} ${timeText(gameClock)} (${partOfDay(gameClock.min).toLowerCase()})`);
+    if (!clockEditing) renderClock();
+    return;
+  }
   if (m.kind === "reload") {
     // the extension was just updated: fetch this page fresh and reload (the link comes back by itself)
     liveBuild().then((v) => location.replace(`dm-panel.html?v=${v ?? Date.now()}`));

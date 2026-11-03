@@ -3,11 +3,13 @@
 import OBR from "@owlbear-rodeo/sdk";
 import { BUILD } from "./build";
 import { CARD_CHANNEL, CARD_ID, CARD_KEY, subtitleFor, type CardMeta } from "./cardShared";
+import { CLOCK_KEY, validClock } from "./clock";
 
 export async function playCard(c?: CardMeta) {
   const card = c ?? ((await OBR.scene.getMetadata())[CARD_KEY] as CardMeta | undefined);
   if (!card?.title?.trim()) return;
-  const sub = await subtitleFor(card);
+  const clock = (await OBR.room.getMetadata())[CLOCK_KEY];
+  const sub = await subtitleFor(card, validClock(clock) ? clock : undefined);
   await OBR.modal.open({
     id: CARD_ID,
     url: new URL(`card.html?v=${BUILD}&t=${encodeURIComponent(card.title.trim())}&s=${encodeURIComponent(sub)}`, location.href).href,
