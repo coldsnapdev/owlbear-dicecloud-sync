@@ -42,7 +42,7 @@ app.innerHTML = `
   <section class="block">
     <h2>Party</h2>
     <div class="row party-row"><button id="party-add" type="button">Add party to scene</button><button id="party-save" class="secondary" type="button" title="Remember the sheet-linked tokens in this scene as the party">Save party</button><span id="party-status" class="status"></span></div>
-    <p class="hint">Paste each token's DiceCloud sheet link.</p>
+    <p class="hint">Party members link to a DiceCloud sheet. Everyone else waits under "Not in the party".</p>
     <div id="mapping-list">Loading tokens…</div>
     <div id="ignored-list"></div>
   </section>
@@ -224,6 +224,9 @@ async function getSession(): Promise<DiceCloudSession | undefined> {
 
 let itemChangeListenerAttached = false;
 
+// tokens you've chosen to add to the party but haven't linked to a sheet yet
+const pendingParty = new Set<string>();
+let othersOpen = false;
 async function renderMappings() {
   // Scene APIs throw if called before a scene is actually open/ready.
   const ready = await OBR.scene.isReady();
@@ -261,26 +264,24 @@ async function renderMappings() {
   // tokens worth linking: anything Forge-style stats live on, or any character token (with
   // Forge switched off, a new character has no stats until it's linked)
   const allForgeItems = items.filter((item: Item) => isForgeUnit(item.metadata) || (item.type === "IMAGE" && item.layer === "CHARACTER"));
-  const visibleForgeItems = allForgeItems.filter((item) => !isNameIgnored(links, item.name));
-  const ignoredLinks = links.filter((l) => l.ignored);
-
-  renderIgnoredList(ignoredLinks);
   renderDebugList(items, allForgeItems);
+  void links;
 
   if (allForgeItems.length === 0) {
     mappingList.innerHTML = `<p class="hint">No character tokens in this scene.</p>`;
-    return;
-  }
-
-  if (visibleForgeItems.length === 0) {
-    mappingList.innerHTML = `<p class="hint">All character tokens here are skipped.</p>`;
+    ignoredList.innerHTML = "";
     return;
   }
 
   const mappingByItem = new Map<string, Mapping>(mappings.map((m) => [m.itemId, m]));
+  // nobody is in the party by default: only tokens linked to a sheet, or ones you've just added
+  for (const id of [...pendingParty]) if (mappingByItem.has(id) || !allForgeItems.some((i) => i.id === id)) pendingParty.delete(id);
+  const partyItems = allForgeItems.filter((i) => mappingByItem.has(i.id) || pendingParty.has(i.id));
+  const others = allForgeItems.filter((i) => !partyItems.includes(i)).sort((a, b) => a.name.localeCompare(b.name));
+  renderOthers(others);
 
-  mappingList.innerHTML = "";
-  for (const item of visibleForgeItems) {
+  mappingList.innerHTML = partyItems.length ? "" : `<p class="hint">No party members in this scene. Add them from "Not in the party" below.</p>`;
+  for (const item of partyItems) {
     const existing = mappingByItem.get(item.id);
     const forgeStats = readForgeStats(item.metadata);
 
@@ -296,7 +297,7 @@ async function renderMappings() {
       <div class="row">
         <input type="text" class="creature-url" placeholder="DiceCloud sheet link" value="${escapeHtml(existing?.creatureId ?? "")}" />
         <button class="save-mapping">Save</button>
-        <button class="ignore-item secondary" type="button" title="Not a party member: hide this token here">Skip</button>
+        <button class="ignore-item secondary" type="button" title="Not a party member: unlink it and move it back to Not in the party">Remove</button>
       </div>
       <div class="row">
         <label class="companion-toggle hint"><input type="checkbox" class="companion-checkbox" ${existing?.companion ? "checked" : ""} /> Companion</label>
@@ -352,12 +353,34 @@ async function renderMappings() {
     });
 
     ignoreButton.addEventListener("click", async () => {
-      await ignoreItemName(item.name);
+      pendingParty.delete(item.id);
+      if (existing) await removeMapping(item.id, item.name);
       renderMappings();
     });
+    if (pendingParty.has(item.id) && !existing) setTimeout(() => input.focus(), 0);
 
     mappingList.appendChild(row);
   }
+}
+
+// everyone who isn't in the party, folded away until you need them
+function renderOthers(others: Item[]) {
+  if (!others.length) {
+    ignoredList.innerHTML = "";
+    return;
+  }
+  ignoredList.innerHTML = `
+    <details class="hidden-tokens" ${othersOpen ? "open" : ""}>
+      <summary>Not in the party (${others.length})</summary>
+      ${others.map((i) => `<div class="hidden-row" data-id="${escapeHtml(i.id)}"><span>${escapeHtml(i.name) || "(unnamed)"}</span><button class="add-party secondary" type="button">Add to party</button></div>`).join("")}
+    </details>`;
+  ignoredList.querySelector("details")!.addEventListener("toggle", (e) => (othersOpen = (e.currentTarget as HTMLDetailsElement).open));
+  ignoredList.querySelectorAll<HTMLButtonElement>(".add-party").forEach((b) =>
+    b.addEventListener("click", () => {
+      pendingParty.add(b.closest<HTMLElement>(".hidden-row")!.dataset.id!);
+      renderMappings();
+    }),
+  );
 }
 
 function renderIgnoredList(ignoredLinks: CharacterLink[]) {
