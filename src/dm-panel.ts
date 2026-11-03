@@ -23,6 +23,7 @@ import {
   sendCommand,
   type TokenStatus,
   type ShowRollCommand,
+  writeMailboxFile,
 } from "./mailbox";
 import { STATUS_DEFS, statusDef, tokenText, CUSTOM_COLOUR } from "./statuses";
 import type { ShownDie, ShownRoll } from "./diceTypes";
@@ -154,6 +155,7 @@ function trackHp(list: LiveCombatant[], round: number, turnName?: string) {
       hpWhy.delete(c.itemId);
       const rows = (hpLog.log[c.itemId] ??= []);
       rows.push({ at: now, round, turn: turnName, hp: c.hp, temp, was: prev.hp, wasTemp: prev.temp, why });
+      record("hp", `${c.realName && c.realName !== c.name ? `${c.name} (${c.realName})` : c.name}: ${prev.hp}${prev.temp ? `+${prev.temp}` : ""} → ${c.hp}${temp ? `+${temp}` : ""}${c.maxHp ? `/${c.maxHp}` : ""} (${why})`);
       if (rows.length > 100) rows.splice(0, rows.length - 100);
     }
     if (!prev || prev.hp !== c.hp || prev.temp !== temp) {
@@ -219,8 +221,11 @@ onOwlbear((m) => {
   if (m.kind === "roster") {
     // Forge's turn moved on: highlight the new combatant and open their card (closing the
     // previous one only if it was opened for its turn, not by hand)
+    const wasRound = round;
     round = m.round ?? 0;
+    let turnMoved = false;
     if (m.turn !== turnId) {
+      turnMoved = rosterSeen;
       if (turnId && autoOpened === turnId) open.delete(turnId);
       turnId = m.turn;
       autoOpened = turnId && !open.has(turnId) ? turnId : undefined;
@@ -235,6 +240,8 @@ onOwlbear((m) => {
     syncFallen(m.combatants);
     trackHp(m.combatants, round, m.combatants.find((c) => c.itemId === turnId)?.name);
     roster = { savedAt: new Date().toISOString(), combatants: m.combatants.map(asEntry) };
+    if (turnMoved) record("turn", turnId ? `${round !== wasRound ? `Round ${round || 1} · ` : ""}${whoIs(turnId)}'s turn` : "Combat ended");
+    rosterSeen = true;
     const ids = new Set(m.combatants.map((c) => c.itemId));
     if (targets.some((id) => !ids.has(id))) setTargets(targets.filter((id) => ids.has(id)));
     meta.textContent = "Live from Owlbear";
@@ -497,6 +504,50 @@ const actions = new Map<string, ActionCtx>();
 
 interface LogLine { who: string; action: string; text: string; tone?: "crit" | "fumble"; status?: string }
 const rollLog: LogLine[] = [];
+let rosterSeen = false;
+
+// --- The combat log ------------------------------------------------------------------------
+// Everything the panel sees during a session, in order: turns and rounds, rolls, HP changes
+// (with their reasons), statuses, the fallen. Kept in this browser and saved to the mailbox
+// branch as logs/<session date>.json, so the post-session write-up works from facts, not
+// from what the transcript happened to catch. A session that runs past midnight stays one
+// session (the date is taken six hours back).
+interface LogRec { at: string; round: number; turn?: string; kind: "turn" | "roll" | "hp" | "status" | "fallen" | "note"; text: string }
+const LOG_KEY = "abelon.combatLog.v1";
+const sessionDate = () => new Date(Date.now() - 6 * 3600_000).toISOString().slice(0, 10);
+function loadLogStore(): { date: string; entries: LogRec[] } {
+  try {
+    const s = JSON.parse(localStorage.getItem(LOG_KEY) || "null");
+    if (s && s.date === sessionDate() && Array.isArray(s.entries)) return s;
+  } catch { /* fresh */ }
+  return { date: sessionDate(), entries: [] };
+}
+let logStore = loadLogStore();
+let logTimer: ReturnType<typeof setTimeout> | undefined;
+const plain = (html: string) => html.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/\s+/g, " ").trim();
+/** Who a token is, as the DM knows them: "Male Human 1 (Coll Tallis)". */
+function whoIs(itemId: string): string {
+  const c = combatant(itemId);
+  if (!c) return itemId;
+  return c.realName && c.realName !== c.name ? `${c.name} (${c.realName})` : c.name;
+}
+function record(kind: LogRec["kind"], text: string) {
+  if (logStore.date !== sessionDate()) logStore = { date: sessionDate(), entries: [] };
+  const turnName = turnId ? whoIs(turnId) : undefined;
+  logStore.entries.push({ at: new Date().toISOString(), round, turn: turnName, kind, text });
+  try {
+    localStorage.setItem(LOG_KEY, JSON.stringify(logStore));
+  } catch { /* storage full: the repo copy still goes */ }
+  clearTimeout(logTimer);
+  logTimer = setTimeout(saveLog, 15_000);
+}
+async function saveLog() {
+  const token = getToken() || read("dicecloud-sync/github-token");
+  if (!token || !logStore.entries.length) return;
+  const body = JSON.stringify({ date: logStore.date, savedAt: new Date().toISOString(), entries: logStore.entries }, null, 1) + "\n";
+  await writeMailboxFile(`logs/${logStore.date}.json`, body, `Combat log ${logStore.date}`, token).catch((e) => console.warn("[abelon] combat log not saved", e));
+}
+addEventListener("beforeunload", () => void saveLog());
 const lastResult = new Map<string, string>(); // button key -> short result shown beside it
 const critPending = new Set<string>(); // action keys after a natural 20, until that action's next to-hit
 let freshKey: string | undefined;
@@ -550,6 +601,7 @@ const d20s = (r: Roll, tint: string): ShownDie[] =>
 const diceOf = (r: Roll, tint: string): ShownDie[] => r.dice.map((v) => ({ sides: r.sides, value: v, tint }));
 
 async function log(line: LogLine, embed: Embed, privateRoll = !isPublic(), dice?: DiceShow) {
+  record("roll", `${line.who} · ${line.action}: ${plain(line.text)}${privateRoll ? " (private)" : ""}`);
   rollLog.unshift(line);
   rollLog.splice(15);
   render();
@@ -866,7 +918,12 @@ function scheduleStatusSave() {
   }, 700);
 }
 function changeStatuses(itemId: string, fn: (list: TokenStatus[]) => TokenStatus[]) {
+  const before = (statuses[itemId] ?? []).map((s) => tokenText(s));
   statuses[itemId] = fn([...(statuses[itemId] ?? [])]);
+  const after = (statuses[itemId] ?? []).map((s) => tokenText(s));
+  const gained = after.filter((t) => !before.includes(t));
+  const lost = before.filter((t) => !after.includes(t));
+  if (gained.length || lost.length) record("status", `${whoIs(itemId)}: ${[...gained.map((t) => `+ ${t}`), ...lost.map((t) => `− ${t}`)].join(", ")}`);
   render();
   // straight to Owlbear through the relay, if it's running; GitHub keeps the saved copy
   const tokens = Object.fromEntries(Object.entries(statuses).filter(([, l]) => l.length));
@@ -899,6 +956,7 @@ function syncFallen(list: LiveCombatant[]) {
     const was = lastFallen.get(c.itemId);
     lastFallen.set(c.itemId, c.fallen);
     if (!known || was === c.fallen) continue; // first sight after a reload: the saved statuses already match
+    record("fallen", `${whoIs(c.itemId)}: ${c.fallen === "dead" ? "dead" : c.fallen === "down" ? "down" : `revived (was ${was})`}`);
     const have = (k: string) => (statuses[c.itemId] ?? []).some((s) => s.key === k);
     if (was === "dead" && have("dead")) changeStatuses(c.itemId, (l) => l.filter((s) => s.key !== "dead"));
     if (was === "down" && have("unconscious")) changeStatuses(c.itemId, (l) => l.filter((s) => s.key !== "unconscious"));

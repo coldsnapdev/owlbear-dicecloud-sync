@@ -2,6 +2,8 @@ import { BUILD, BUILD_NOTE } from "./build";
 import { liveBuild, refreshPages, REFRESH_CHANNEL } from "./refresh";
 import { LINK_STATUS_KEY, LIVE_STATUS_KEY, RELAY_STATUS_KEY } from "./live";
 import { clearMatch, linkedPerson, linkTokens, loadCast, NAMER_KEY, setHidden, type NamerData } from "./cast";
+import { CARD_CHANNEL, CARD_KEY, type CardMeta } from "./cardShared";
+import { FX_OFF_KEY, FX_PREVIEW_KEY } from "./fxShared";
 import OBR, { type Item } from "@owlbear-rodeo/sdk";
 import {
   diceCloudLogin,
@@ -53,6 +55,14 @@ app.innerHTML = `
     <div class="status" id="names-status"></div>
   </section>
 
+  <section class="block">
+    <h2>Scene</h2>
+    <div class="row"><input id="card-title" type="text" placeholder="Title card, e.g. The Shallow Tuber" /></div>
+    <div class="row"><input id="card-time" type="text" placeholder="Time of day, e.g. evening" /><label class="hint"><input id="card-date" type="checkbox" checked /> Date</label></div>
+    <div class="row party-row"><button id="card-save" type="button">Save</button><button id="card-show" class="secondary" type="button">Show everyone now</button><span class="status" id="card-status"></span></div>
+    <div class="row party-row"><label class="hint"><input id="fx-on" type="checkbox" /> Screen effects for players</label><label class="hint"><input id="fx-preview" type="checkbox" /> Feel the selected token's</label></div>
+  </section>
+
   <details class="settings">
     <summary>Settings</summary>
     <div class="set">
@@ -90,6 +100,56 @@ document.getElementById("party-save")!.addEventListener("click", async () => {
   partyStatus.textContent = `Saved ${n}`;
   setTimeout(showParty, 1500);
 });
+// --- Scene: the title card and screen effects ----------------------------------------------
+async function loadSceneBits() {
+  const fxOff = !!(await OBR.room.getMetadata())[FX_OFF_KEY];
+  (document.getElementById("fx-on") as HTMLInputElement).checked = !fxOff;
+  try {
+    (document.getElementById("fx-preview") as HTMLInputElement).checked = localStorage.getItem(FX_PREVIEW_KEY) === "1";
+  } catch { /* no storage */ }
+  if (!(await OBR.scene.isReady())) return;
+  const c = (await OBR.scene.getMetadata())[CARD_KEY] as CardMeta | undefined;
+  (document.getElementById("card-title") as HTMLInputElement).value = c?.title ?? "";
+  (document.getElementById("card-time") as HTMLInputElement).value = c?.time ?? "";
+  (document.getElementById("card-date") as HTMLInputElement).checked = c ? !!c.date : true;
+}
+OBR.onReady(() => {
+  void loadSceneBits();
+  OBR.scene.onReadyChange(() => void loadSceneBits());
+});
+const cardNow = (): CardMeta => ({
+  title: (document.getElementById("card-title") as HTMLInputElement).value.trim(),
+  time: (document.getElementById("card-time") as HTMLInputElement).value.trim() || undefined,
+  date: (document.getElementById("card-date") as HTMLInputElement).checked,
+});
+const cardSay = (t: string, tone = "") => {
+  const el = document.getElementById("card-status")!;
+  el.textContent = t;
+  el.className = `status ${tone}`;
+};
+document.getElementById("card-save")!.addEventListener("click", async () => {
+  if (!(await OBR.scene.isReady())) return cardSay("Open a scene first.", "error");
+  const c = cardNow();
+  await OBR.scene.setMetadata({ [CARD_KEY]: c.title ? c : undefined });
+  cardSay(c.title ? "Saved: plays when this scene loads." : "Cleared.", "ok");
+});
+document.getElementById("card-show")!.addEventListener("click", async () => {
+  const c = cardNow();
+  if (!c.title) return cardSay("Give it a title first.", "error");
+  await OBR.broadcast.sendMessage(CARD_CHANNEL, c, { destination: "ALL" });
+  cardSay("Showing.", "ok");
+});
+document.getElementById("fx-on")!.addEventListener("change", async (e) => {
+  await OBR.room.setMetadata({ [FX_OFF_KEY]: (e.target as HTMLInputElement).checked ? undefined : true });
+});
+document.getElementById("fx-preview")!.addEventListener("change", (e) => {
+  try {
+    localStorage.setItem(FX_PREVIEW_KEY, (e.target as HTMLInputElement).checked ? "1" : "0");
+  } catch { /* no storage */ }
+  // the background listens for player changes: nudge it by re-setting the selection
+  void OBR.player.getSelection().then((sel) => (sel?.length ? OBR.player.select(sel) : undefined));
+});
+
 // --- Names: the old Namer's bulk buttons --------------------------------------------------
 // The party never gets a placeholder: anyone linked to a DiceCloud sheet is skipped.
 async function namesTargets() {

@@ -367,3 +367,20 @@ export async function pollCommands(token: string, etag?: string): Promise<{ file
   const j = await r.json();
   return { file: JSON.parse(decode(j.content)) as CommandFile, etag: r.headers.get("ETag") ?? undefined };
 }
+
+// --- Any file on the mailbox branch (the combat log, people made in Owlbear) -------------
+export async function writeMailboxFile(path: string, text: string, message: string, token: string): Promise<void> {
+  const url = `https://api.github.com/repos/${REPO}/contents/${path}`;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const current = await readJson<unknown>(`${url}?ref=${BRANCH}`, token).catch(() => undefined);
+    const r = await fetch(url, {
+      method: "PUT",
+      headers: { ...headers(token), "Content-Type": "application/json" },
+      body: JSON.stringify({ message, branch: BRANCH, content: encode(text), ...(current ? { sha: current.sha } : {}) }),
+    });
+    if (r.status === 409 || r.status === 422) continue;
+    if (!r.ok) throw new Error(`save ${r.status}`);
+    return;
+  }
+  throw new Error("save conflict");
+}

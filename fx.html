@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Abelon effects</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; pointer-events: none; color-scheme: normal; }
+      .fx { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity 1.6s ease; }
+      .fx.on { opacity: 1; }
+      .layer { position: absolute; inset: -6%; }
+
+      /* the Rot: ragged, creeping dark edges that close in stack by stack */
+      #rot .layer { background: radial-gradient(ellipse at center, transparent var(--clear), rgba(24,10,34,.55) calc(var(--clear) + 10%), rgba(10,4,16,.92) 100%); filter: url(#ragged); animation: creep 14s ease-in-out infinite alternate; }
+      #rot .layer + .layer { background: radial-gradient(ellipse at 30% 40%, transparent calc(var(--clear) + 6%), rgba(40,14,52,.35) 100%); animation-duration: 19s; animation-direction: alternate-reverse; }
+      #rot.six .layer { animation: creep 14s ease-in-out infinite alternate, throb 1.6s ease-in-out infinite; }
+      @keyframes creep { from { transform: scale(1) rotate(0deg); } to { transform: scale(1.04) rotate(1.2deg); } }
+      @keyframes throb { 50% { opacity: .78; } }
+
+      /* poisoned: a sickly green edge that sways */
+      #poisoned .layer { background: radial-gradient(ellipse at center, transparent 52%, rgba(96,120,30,.28) 70%, rgba(54,74,10,.6) 100%); animation: sway 6s ease-in-out infinite; }
+      @keyframes sway { 0%, 100% { transform: translate(0, 0); } 33% { transform: translate(-1.2%, .6%); } 66% { transform: translate(1%, -.8%); } }
+
+      /* charmed: a warm rose glow that shimmers */
+      #charmed .layer { background: radial-gradient(ellipse at center, transparent 55%, rgba(236,120,170,.3) 70%, rgba(200,70,130,.6) 100%); animation: shimmer 4s ease-in-out infinite; }
+      @keyframes shimmer { 50% { opacity: .55; } }
+
+      /* frightened: dark edges with a racing heartbeat */
+      #frightened .layer { background: radial-gradient(ellipse at center, transparent 38%, rgba(70,0,0,.55) 62%, rgba(15,0,0,.92) 100%); animation: heartbeat 1s ease-in-out infinite; }
+      @keyframes heartbeat { 0%, 100% { transform: scale(1); } 12% { transform: scale(.975); } 24% { transform: scale(1); } 36% { transform: scale(.985); } }
+
+      /* exhaustion: grey heaviness; eyelids that droop further with each level */
+      #exhaustion .layer { background: radial-gradient(ellipse at center, transparent calc(58% - var(--lvl) * 6%), rgba(60,60,60,.4) 75%, rgba(25,25,25,.85) 100%); }
+      #exhaustion .lid { position: absolute; left: -5%; right: -5%; height: 50%; background: linear-gradient(to bottom, rgba(0,0,0,.92), rgba(0,0,0,0)); animation: droop calc(9s - var(--lvl) * 1s) ease-in-out infinite; }
+      #exhaustion .lid.top { top: -50%; }
+      #exhaustion .lid.bottom { bottom: -50%; transform: scaleY(-1); animation-name: droop-b; }
+      @keyframes droop { 0%, 70%, 100% { top: -50%; } 82% { top: calc(-50% + var(--lvl) * 5%); } }
+      @keyframes droop-b { 0%, 70%, 100% { bottom: -50%; } 82% { bottom: calc(-50% + var(--lvl) * 5%); } }
+
+      /* blinded: nearly everything gone */
+      #blinded .layer { background: radial-gradient(ellipse at center, rgba(0,0,0,.35) 0%, rgba(0,0,0,.88) 30%, rgba(0,0,0,.97) 60%); }
+
+      /* unconscious / down: dark, with slow breathing */
+      #down .layer { background: radial-gradient(ellipse at center, rgba(0,0,0,.55) 0%, rgba(10,0,0,.9) 55%, rgba(0,0,0,.97) 100%); animation: breathe 5s ease-in-out infinite; }
+      @keyframes breathe { 50% { opacity: .82; } }
+
+      /* paralyzed: frost creeping in from the corners */
+      #paralyzed .layer { background: radial-gradient(ellipse at center, transparent 42%, rgba(190,225,255,.35) 66%, rgba(225,242,255,.8) 100%); filter: url(#ragged); }
+
+      /* stunned: white flashes at the edges */
+      #stunned .layer { background: radial-gradient(ellipse at center, transparent 55%, rgba(255,255,255,.45) 100%); animation: flash 2.4s steps(1) infinite; }
+      @keyframes flash { 0% { opacity: 1; } 8% { opacity: .2; } 14% { opacity: .9; } 30% { opacity: .35; } 60% { opacity: .7; } }
+
+      /* dead */
+      #dead .layer { background: rgba(0,0,0,.94); }
+    </style>
+  </head>
+  <body>
+    <svg width="0" height="0" style="position:absolute">
+      <filter id="ragged" x="-10%" y="-10%" width="120%" height="120%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="3" seed="7" result="n" />
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="90" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+    </svg>
+    <div class="fx" id="rot"><div class="layer"></div><div class="layer"></div></div>
+    <div class="fx" id="poisoned"><div class="layer"></div></div>
+    <div class="fx" id="charmed"><div class="layer"></div></div>
+    <div class="fx" id="frightened"><div class="layer"></div></div>
+    <div class="fx" id="exhaustion"><div class="layer"></div><div class="lid top"></div><div class="lid bottom"></div></div>
+    <div class="fx" id="paralyzed"><div class="layer"></div></div>
+    <div class="fx" id="stunned"><div class="layer"></div></div>
+    <div class="fx" id="blinded"><div class="layer"></div></div>
+    <div class="fx" id="down"><div class="layer"></div></div>
+    <div class="fx" id="dead"><div class="layer"></div></div>
+    <script type="module" src="/src/fx.ts"></script>
+  </body>
+</html>

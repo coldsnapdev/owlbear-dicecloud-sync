@@ -26,6 +26,8 @@ export default defineConfig({
         dice: resolve(__dirname, "dice.html"),
         strip: resolve(__dirname, "strip.html"),
         castPicker: resolve(__dirname, "cast-picker.html"),
+        fx: resolve(__dirname, "fx.html"),
+        card: resolve(__dirname, "card.html"),
       },
     },
   },
