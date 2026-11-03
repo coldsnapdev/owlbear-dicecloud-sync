@@ -3,7 +3,7 @@
 //  - right-click "Add to combat" / "Remove from combat" (GM)
 //  - HP bars under tokens (drawn by the GM's client, seen by everyone)
 //  - mirroring statuses into the combat state so players' strips can show them
-import OBR, { buildImage, buildShape, type Item } from "@owlbear-rodeo/sdk";
+import OBR, { buildPath, buildShape, Command, type Item, type PathCommand } from "@owlbear-rodeo/sdk";
 import { addToCombat, addToStandby, removeFromStandby, STANDBY_KEY, FALLEN_KEY, fallenOf, setFallen, applyStatBlock, COMBAT_KEY, partyIds, getState, inCombat, removeFromCombat, type CombatState, type PublicStatus } from "./combat";
 import { FORGE_KEYS } from "./forge";
 import { GM_STATUS_KEY } from "./stripKeys";
@@ -224,7 +224,56 @@ async function drawBars() {
 // member who's down: a lighter wash and a cracked heart, standing, and it clears itself once
 // they're healed above 0 HP. Everyone sees these; they follow the token's own visibility.
 const FALL_KEY = "com.abelon.combat/fallen-mark";
-const FALL_STYLE = 1;
+const FALL_STYLE = 2; // 1 used image items, which Owlbear drew as black squares
+
+// The icons as paths (drawn in a 256-unit box centred on 128,128), so they need no image
+// loading and scale exactly. The skull's eyes and nose are holes (even-odd fill).
+type Pt = [number, number];
+const ellipse = (cx: number, cy: number, rx: number, ry: number): (Pt | Pt[])[] => {
+  const k = 0.5523;
+  return [
+    [cx + rx, cy],
+    [[cx + rx, cy + ry * k], [cx + rx * k, cy + ry], [cx, cy + ry]],
+    [[cx - rx * k, cy + ry], [cx - rx, cy + ry * k], [cx - rx, cy]],
+    [[cx - rx, cy - ry * k], [cx - rx * k, cy - ry], [cx, cy - ry]],
+    [[cx + rx * k, cy - ry], [cx + rx, cy - ry * k], [cx + rx, cy]],
+  ];
+};
+// each shape: first point is a move, then [x,y] = line or [[c1],[c2],[end]] = cubic; all closed
+const SKULL: (Pt | Pt[])[][] = [
+  [
+    [128, 34],
+    [[82, 34], [48, 65], [48, 108]], [[48, 133], [59, 151], [75, 162]], [75, 186],
+    [[75, 194], [81, 200], [89, 200]], [99, 200], [99, 182], [112, 182], [112, 200], [144, 200], [144, 182], [157, 182], [157, 200], [167, 200],
+    [[175, 200], [181, 194], [181, 186]], [181, 162], [[197, 151], [208, 133], [208, 108]], [[208, 65], [174, 34], [128, 34]],
+  ],
+  ellipse(96, 114, 20, 23),
+  ellipse(160, 114, 20, 23),
+  [[128, 140], [116, 162], [140, 162]],
+];
+const HEART: (Pt | Pt[])[][] = [
+  [
+    [128, 214],
+    [[128, 214], [46, 168], [46, 102]], [[46, 74], [67, 54], [92, 54]], [[109, 54], [122, 63], [128, 76]],
+    [[134, 63], [147, 54], [164, 54]], [[189, 54], [210, 74], [210, 102]], [[210, 168], [128, 214], [128, 214]],
+  ],
+];
+const CRACK: Pt[] = [[130, 70], [114, 110], [140, 124], [122, 168]];
+function toCommands(shapes: (Pt | Pt[])[][], k: number, close = true): PathCommand[] {
+  const p = (q: Pt): [number, number] => [(q[0] - 128) * k, (q[1] - 128) * k];
+  const out: PathCommand[] = [];
+  for (const shape of shapes) {
+    shape.forEach((step, i) => {
+      if (i === 0) out.push([Command.MOVE, ...p(step as Pt)]);
+      else if (Array.isArray(step[0])) {
+        const [a, b, c] = step as Pt[];
+        out.push([Command.CUBIC, ...p(a), ...p(b), ...p(c)]);
+      } else out.push([Command.LINE, ...p(step as Pt)]);
+    });
+    if (close) out.push([Command.CLOSE]);
+  }
+  return out;
+}
 interface FallMeta { parent: string; part: string; sig: string }
 async function drawFallen(items: Item[], dpi: number) {
   const marks = items.filter((i) => i.metadata[FALL_KEY]);
@@ -242,10 +291,8 @@ async function drawFallen(items: Item[], dpi: number) {
     const b = await OBR.scene.items.getItemBounds([t.id]);
     const size = Math.min(b.width, b.height);
     const centre = { x: Math.round(b.center.x), y: Math.round(b.center.y) };
-    const want = [
-      { part: "wash", sig: JSON.stringify([FALL_STYLE, "wash", dead, centre, size, t.visible]) },
-      { part: "icon", sig: JSON.stringify([FALL_STYLE, "icon", dead, centre, size, t.visible]) },
-    ];
+    const parts = dead ? ["wash", "icon"] : ["wash", "icon", "crack"];
+    const want = parts.map((part) => ({ part, sig: JSON.stringify([FALL_STYLE, part, dead, centre, size, t.visible]) }));
     for (const w of want) {
       const match = marks.find((e) => {
         const m = e.metadata[FALL_KEY] as FallMeta;
@@ -278,18 +325,21 @@ async function drawFallen(items: Item[], dpi: number) {
             .build(),
         );
       } else {
-        const px = 256;
-        const scale = (size * (dead ? 0.5 : 0.36)) / dpi; // the image is one grid cell at this dpi
+        const k = (size * (dead ? 0.5 : 0.36)) / 256;
+        const crack = w.part === "crack";
         add.push(
-          buildImage(
-            { url: new URL(dead ? "icons/fallen-dead.svg" : "icons/fallen-down.svg", location.href).href, mime: "image/svg+xml", width: px, height: px },
-            { dpi: px, offset: { x: px / 2, y: px / 2 } },
-          )
-            .scale({ x: scale, y: scale })
+          buildPath()
+            .commands(crack ? toCommands([CRACK], k, false) : toCommands(dead ? SKULL : HEART, k))
+            .fillRule("evenodd")
+            .fillColor(dead ? "#d9cdb4" : "#c9574a")
+            .fillOpacity(crack ? 0 : 0.92)
+            .strokeColor("#1a140e")
+            .strokeOpacity(1)
+            .strokeWidth(Math.max(2, Math.round(7 * k * (crack ? 1.3 : 1))))
             .position(centre)
             .attachedTo(t.id)
             .layer("ATTACHMENT")
-            .zIndex(6)
+            .zIndex(crack ? 7 : 6)
             .locked(true)
             .disableHit(true)
             .visible(t.visible)
