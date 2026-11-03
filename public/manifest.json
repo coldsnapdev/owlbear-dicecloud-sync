@@ -1,14 +1,14 @@
 {
-  "name": "Abelon DiceCloud Sync",
+  "name": "Abelon DM Panel",
   "version": "0.1.0",
   "manifest_version": 1,
-  "description": "Pulls current HP, max HP, and AC from each party member's DiceCloud sheet into their Forge! unit.",
+  "description": "The Abelon DM panel: combat strip, HP bars, statuses, the cast and hidden names, and DiceCloud sync.",
   "author": "Simon",
-  "icon": "https://coldsnapdev.github.io/owlbear-dicecloud-sync/icon.svg",
+  "icon": "https://coldsnapdev.github.io/owlbear-dicecloud-sync/icon.png",
   "background_url": "https://coldsnapdev.github.io/owlbear-dicecloud-sync/background.html",
   "action": {
-    "title": "DiceCloud Sync",
-    "icon": "https://coldsnapdev.github.io/owlbear-dicecloud-sync/icon.svg",
+    "title": "DM Panel",
+    "icon": "https://coldsnapdev.github.io/owlbear-dicecloud-sync/icon.png",
     "popover": "https://coldsnapdev.github.io/owlbear-dicecloud-sync/index.html",
     "width": 380,
     "height": 560
