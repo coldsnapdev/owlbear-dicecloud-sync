@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-11-03T11:57:43.794Z",
+ "savedAt": "2026-11-03T11:57:46.195Z",
  "tokens": {
   "8367561a-6dcc-4e83-a0ca-f90c3a66c604": [
    {
@@ -41,6 +41,10 @@
    {
     "key": "custom:drunk",
     "label": "Drunk"
+   },
+   {
+    "key": "charmed",
+    "label": "Charmed"
    }
   ]
  }
