@@ -38,6 +38,7 @@ export interface RosterEntry {
   dex?: number;
   sheet?: boolean;
   ally?: boolean;
+  standby?: boolean;
 }
 
 export interface RosterFile {

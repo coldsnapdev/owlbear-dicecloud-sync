@@ -11,6 +11,9 @@ import { FORGE_KEYS } from "./forge";
 export const COMBAT_KEY = "com.abelon.combat/state";
 /** on a token: this NPC fights alongside the party (teal on the strip, not burnt orange) */
 export const ALLY_KEY = "com.abelon.combat/ally";
+/** on a token: on the DM panel (statuses, stat block, HP) but not in initiative, no HP bar, not on the strip */
+export const STANDBY_KEY = "com.abelon.combat/standby";
+export const onStandby = (item: Item) => !!item.metadata[STANDBY_KEY] && !(FORGE_KEYS.onList in item.metadata);
 const NAMER_KEY = "com.abelon.namer/data";
 const MAPPING_KEY = "com.abelon.dicecloud-sync/mappings";
 
@@ -97,8 +100,24 @@ export async function addToCombat(ids: string[]) {
   await OBR.scene.items.updateItems(ids, (items) => {
     for (const it of items) {
       it.metadata[FORGE_KEYS.onList] = true;
+      delete it.metadata[STANDBY_KEY]; // joining the fight: off standby
       if (!it.metadata[FORGE_KEYS.name]) it.metadata[FORGE_KEYS.name] = it.name;
     }
+  });
+}
+/** Put tokens on the DM panel without putting them in initiative. */
+export async function addToStandby(ids: string[]) {
+  await OBR.scene.items.updateItems(ids, (items) => {
+    for (const it of items) {
+      if (FORGE_KEYS.onList in it.metadata) continue; // already fighting
+      it.metadata[STANDBY_KEY] = true;
+      if (!it.metadata[FORGE_KEYS.name]) it.metadata[FORGE_KEYS.name] = it.name;
+    }
+  });
+}
+export async function removeFromStandby(ids: string[]) {
+  await OBR.scene.items.updateItems(ids, (items) => {
+    for (const it of items) delete it.metadata[STANDBY_KEY];
   });
 }
 export async function removeFromCombat(ids: string[]) {

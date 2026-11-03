@@ -127,9 +127,9 @@ export interface Combatant {
  * carrying Forge's on-list key, sorted by initiative descending (highest
  * acts first, standard 5e order).
  */
-export function getCombatRoster(items: Item[]): Combatant[] {
+export function getCombatRoster(items: Item[], include: (item: Item) => boolean = (item) => isOnCombatList(item.metadata)): Combatant[] {
   return items
-    .filter((item) => isOnCombatList(item.metadata))
+    .filter(include)
     .map((item): Combatant => {
       const stats = readForgeStats(item.metadata);
       const name = (item.metadata[FORGE_KEYS.name] as string | undefined) ?? item.name;

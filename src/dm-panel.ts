@@ -209,7 +209,7 @@ let round = 0;
 let autoOpened: string | undefined;
 let scrollToTurn = false;
 let lastLiveFp = "";
-const asEntry = (c: LiveCombatant): RosterEntry => ({ itemId: c.itemId, name: c.name, realName: c.realName, initiative: c.initiative, ac: c.ac, hp: c.hp, maxHp: c.maxHp, tempHp: c.tempHp, hasInit: c.hasInit, visible: c.visible, dex: c.dex, sheet: c.sheet, ally: c.ally });
+const asEntry = (c: LiveCombatant): RosterEntry => ({ itemId: c.itemId, name: c.name, realName: c.realName, initiative: c.initiative, ac: c.ac, hp: c.hp, maxHp: c.maxHp, tempHp: c.tempHp, hasInit: c.hasInit, visible: c.visible, dex: c.dex, sheet: c.sheet, ally: c.ally, standby: c.standby });
 onOwlbear((m) => {
   if (m.kind === "reload") {
     // the extension was just updated: fetch this page fresh and reload (the link comes back by itself)
@@ -1337,8 +1337,8 @@ function wireHp() {
 }
 let endArmed = false;
 function combatBar(): string {
-  if (!roster?.combatants.length || !owlbearWindow()) return "";
-  const npcsToRoll = roster.combatants.filter((c) => !c.sheet && entryFor(c).entry && c.hasInit === false).length;
+  if (!roster?.combatants.some((c) => !c.standby) || !owlbearWindow()) return "";
+  const npcsToRoll = roster.combatants.filter((c) => !c.standby && !c.sheet && entryFor(c).entry && c.hasInit === false).length;
   return `<div class="combat-bar">
     <span class="cb-round">${turnId ? `Round ${round || 1}` : "Not started"}</span>
     <button type="button" class="cb-btn" data-cb="roll" ${npcsToRoll ? "" : "disabled"} title="Roll initiative for every NPC that hasn't rolled">Roll NPCs${npcsToRoll ? ` (${npcsToRoll})` : ""}</button>
@@ -1420,7 +1420,7 @@ function wireInitiative() {
     input.addEventListener("blur", () => save(true));
   }
   app.querySelector<HTMLButtonElement>('[data-cb="roll"]')?.addEventListener("click", () =>
-    rollInitiative((roster?.combatants ?? []).filter((c) => !c.sheet && entryFor(c).entry && c.hasInit === false)),
+    rollInitiative((roster?.combatants ?? []).filter((c) => !c.standby && !c.sheet && entryFor(c).entry && c.hasInit === false)),
   );
   app.querySelector<HTMLButtonElement>('[data-cb="end"]')?.addEventListener("click", () => {
     if (!endArmed) {
@@ -1455,7 +1455,7 @@ function render() {
     return;
   }
   if (roster.combatants.length === 0) {
-    app.innerHTML = `<p class="empty">Nobody is on Forge's combat list.</p>`;
+    app.innerHTML = `<p class="empty">Nobody is in combat or on the panel. Right-click a token in Owlbear: "Add to combat", or "Add to panel (not initiative)".</p>`;
     freshKey = undefined;
     return;
   }
@@ -1493,8 +1493,7 @@ function render() {
   };
   // Everyone sits in a strip of small tiles (name, initiative) in turn order; a tile
   // opens the full card below the strip, in initiative order.
-  const tiles = `<div class="pc-bar">${roster.combatants
-    .map((c) => {
+  const pill = (c: RosterEntry) => {
       const { entry } = entryFor(c);
       const alias = c.realName && c.realName !== c.name ? ` (shown as ${c.name})` : "";
       const tgt = targets.includes(c.itemId);
@@ -1503,10 +1502,22 @@ function render() {
         ? `<input class="pc-init-in" type="number" data-init-in="${id}" value="${c.hasInit === false ? "" : c.initiative}" />`
         : `<span class="pc-init ${c.hasInit === false ? "none" : ""}" data-init="${id}" title="Click to enter initiative">${c.hasInit === false ? "–" : c.initiative}</span>`;
       const roll = entry && !c.sheet ? `<span class="pc-roll" data-roll="${id}" title="Roll initiative">⚄</span>` : "";
-      return `<div role="button" tabindex="0" class="pc-pill ${open.has(c.itemId) ? "on" : ""} ${!entry || c.sheet ? "party" : c.ally ? "ally" : "npc"} ${tgt ? "targeted" : ""} ${c.itemId === turnId ? "turn" : ""} ${c.visible === false ? "hid" : ""}" data-id="${id}" title="${escapeHtml(c.realName && c.realName !== c.name ? `${c.name} (really ${c.realName})` : c.name)}">${roll}<span class="tgt" data-tgt="${id}" title="${tgt ? "Untarget" : "Target"}">◎</span><span class="pc-name">${escapeHtml(c.name)}</span>${init}${hpBar(c)}${headChips(c.itemId)}</div>`;
-    })
-    .join("")}</div>`;
-  app.innerHTML = combatBar() + tiles + targetBar() + resolveCard() + roster.combatants.filter((c) => open.has(c.itemId)).map(card).join("");
+      const sb = c.standby
+        ? `<span class="pc-sb"><button type="button" class="pc-join" data-join="${id}" title="Put in initiative: HP bar and strip">⚔ Join</button><button type="button" class="pc-unstage" data-unstage="${id}" title="Take off the panel">✕</button></span>`
+        : init;
+      return `<div role="button" tabindex="0" class="pc-pill ${open.has(c.itemId) ? "on" : ""} ${!entry || c.sheet ? "party" : c.ally ? "ally" : "npc"} ${c.standby ? "standby" : ""} ${tgt ? "targeted" : ""} ${c.itemId === turnId ? "turn" : ""} ${c.visible === false ? "hid" : ""}" data-id="${id}" title="${escapeHtml(c.realName && c.realName !== c.name ? `${c.name} (really ${c.realName})` : c.name)}">${c.standby ? "" : roll}<span class="tgt" data-tgt="${id}" title="${tgt ? "Untarget" : "Target"}">◎</span><span class="pc-name">${escapeHtml(c.name)}</span>${sb}${hpBar(c)}${headChips(c.itemId)}</div>`;
+  };
+  const fighting = roster.combatants.filter((c) => !c.standby);
+  const standing = roster.combatants.filter((c) => c.standby).sort((a, b) => a.name.localeCompare(b.name));
+  const tiles = (fighting.length ? `<div class="pc-bar">${fighting.map(pill).join("")}</div>` : "")
+    + (standing.length ? `<div class="sb-head"><span>On the panel, not in initiative</span>${standing.length > 1 ? `<button type="button" class="pc-join" data-join-all="1">⚔ All join</button>` : ""}</div><div class="pc-bar standby-bar">${standing.map(pill).join("")}</div>` : "");
+  // cards follow the same order: fighters by initiative, then standby
+  app.innerHTML = combatBar() + tiles + targetBar() + resolveCard() + [...fighting, ...standing].filter((c) => open.has(c.itemId)).map(card).join("");
+  const sendCombat = (op: "join" | "unstage", ids: string[]) =>
+    fastSend({ kind: "combat", id: crypto.randomUUID(), at: new Date().toISOString(), op, values: Object.fromEntries(ids.map((i) => [i, 1])) });
+  app.querySelectorAll<HTMLButtonElement>("[data-join]").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); sendCombat("join", [b.dataset.join!]); }));
+  app.querySelector<HTMLButtonElement>("[data-join-all]")?.addEventListener("click", () => sendCombat("join", standing.map((c) => c.itemId)));
+  app.querySelectorAll<HTMLButtonElement>("[data-unstage]").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); sendCombat("unstage", [b.dataset.unstage!]); }));
   wireResolve();
   if (scrollToTurn && !scrollToResolve) {
     scrollToTurn = false;

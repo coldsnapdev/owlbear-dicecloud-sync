@@ -1,4 +1,4 @@
-import { ALLY_KEY, applyStatBlock, endCombat, getState, patchState, step } from "./combat";
+import { addToCombat, ALLY_KEY, applyStatBlock, endCombat, getState, onStandby, patchState, removeFromStandby, step } from "./combat";
 import { mirrorStatuses, startCombatHost } from "./combatHost";
 import { BUILD } from "./build";
 import { refreshPages, REFRESH_CHANNEL } from "./refresh";
@@ -242,6 +242,8 @@ function handleLiveMessage(msg: LiveMessage) {
       msg.op === "next" ? step(1)
       : msg.op === "prev" ? step(-1)
       : msg.op === "end" ? endCombat()
+      : msg.op === "join" ? addToCombat(Object.keys(msg.values ?? {}))
+      : msg.op === "unstage" ? removeFromStandby(Object.keys(msg.values ?? {}))
       : msg.op === "ally" ? OBR.scene.items.updateItems(Object.keys(msg.values ?? {}), (its) => {
           for (const it of its) {
             if (msg.values![it.id]) it.metadata[ALLY_KEY] = true;
@@ -365,6 +367,17 @@ async function pushRoster(force = false) {
     sheet: linked.has(c.itemId) || undefined, multipliers: sheetMultipliers.get(c.itemId),
     ...extra(items.find((i) => i.id === c.itemId)),
   }));
+  // tokens on standby: on the panel, but not in initiative
+  for (const c of getCombatRoster(items, onStandby)) {
+    combatants.push({
+      itemId: c.itemId, name: c.name, realName: c.realName, initiative: 0,
+      ac: c.ac, hp: c.currentHP, maxHp: c.maxHP, tempHp: c.tempHP,
+      sheet: linked.has(c.itemId) || undefined, multipliers: sheetMultipliers.get(c.itemId),
+      ...extra(items.find((i) => i.id === c.itemId)),
+      hasInit: undefined,
+      standby: true,
+    });
+  }
   const st = await getState();
   const turn = await currentTurn().catch(() => undefined);
   const fp = JSON.stringify([combatants, turn, st.round]);

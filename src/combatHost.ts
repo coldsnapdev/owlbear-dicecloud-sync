@@ -4,7 +4,7 @@
 //  - HP bars under tokens (drawn by the GM's client, seen by everyone)
 //  - mirroring statuses into the combat state so players' strips can show them
 import OBR, { buildShape, type Item } from "@owlbear-rodeo/sdk";
-import { addToCombat, applyStatBlock, COMBAT_KEY, partyIds, getState, inCombat, removeFromCombat, type CombatState, type PublicStatus } from "./combat";
+import { addToCombat, addToStandby, removeFromStandby, STANDBY_KEY, applyStatBlock, COMBAT_KEY, partyIds, getState, inCombat, removeFromCombat, type CombatState, type PublicStatus } from "./combat";
 import { FORGE_KEYS } from "./forge";
 import { GM_STATUS_KEY } from "./stripKeys";
 import { BUILD } from "./build";
@@ -81,6 +81,21 @@ function contextMenus() {
     id: "com.abelon.combat/remove",
     icons: [{ icon, label: "Remove from combat", filter: { roles: ["GM"], every: [{ key: ["metadata", FORGE_KEYS.onList], value: undefined, operator: "!=" }] } }],
     onClick: (ctx) => removeFromCombat(ctx.items.map((i) => i.id)),
+  });
+  // on the DM panel only: statuses and stat block ready, but no initiative and no HP bar
+  const panelIcon = new URL("icons/panel.svg", location.href).href;
+  OBR.contextMenu.create({
+    id: "com.abelon.combat/standby-add",
+    icons: [{ icon: panelIcon, label: "Add to panel (not initiative)", filter: { roles: ["GM"], every: [{ key: ["metadata", FORGE_KEYS.onList], value: undefined }, { key: ["metadata", STANDBY_KEY], value: undefined }] } }],
+    onClick: async (ctx) => {
+      await addToStandby(ctx.items.map((i) => i.id));
+      await fillFromBestiary(ctx.items).catch((err) => console.warn("[abelon] couldn't fill stats from the bestiary", err));
+    },
+  });
+  OBR.contextMenu.create({
+    id: "com.abelon.combat/standby-remove",
+    icons: [{ icon: panelIcon, label: "Remove from panel", filter: { roles: ["GM"], every: [{ key: ["metadata", STANDBY_KEY], value: undefined, operator: "!=" }, { key: ["metadata", FORGE_KEYS.onList], value: undefined }] } }],
+    onClick: (ctx) => removeFromStandby(ctx.items.map((i) => i.id)),
   });
 }
 

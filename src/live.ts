@@ -108,7 +108,7 @@ export interface CombatMessage {
   kind: "combat";
   id: string;
   at: string;
-  op: "init" | "next" | "prev" | "end" | "ally";
+  op: "init" | "next" | "prev" | "end" | "ally" | "join" | "unstage";
   /** op "init": itemId -> initiative (null clears it); op "ally": itemId -> 1 (allied) or null */
   values?: Record<string, number | null>;
 }
@@ -144,6 +144,8 @@ export interface LiveCombatant {
   dex?: number;
   /** an NPC on the party's side */
   ally?: boolean;
+  /** on the panel but not in initiative (no HP bar, not on the strip) */
+  standby?: boolean;
   /** from the sheet: damage type -> 0 / 0.5 / 2 */
   multipliers?: Record<string, number>;
 }
