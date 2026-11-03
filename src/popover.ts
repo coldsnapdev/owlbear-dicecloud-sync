@@ -1,6 +1,7 @@
 import { BUILD, BUILD_NOTE } from "./build";
 import { liveBuild, refreshPages, REFRESH_CHANNEL } from "./refresh";
 import { LINK_STATUS_KEY, LIVE_STATUS_KEY, RELAY_STATUS_KEY } from "./live";
+import { clearMatch, linkedPerson, linkTokens, loadCast, NAMER_KEY, setHidden, type NamerData } from "./cast";
 import OBR, { type Item } from "@owlbear-rodeo/sdk";
 import {
   diceCloudLogin,
@@ -46,6 +47,12 @@ app.innerHTML = `
     <div id="ignored-list"></div>
   </section>
 
+  <section class="block">
+    <h2>Names</h2>
+    <div class="row party-row"><button id="names-setup" type="button" title="Link every unlinked token whose name clearly means someone in the cast, and hide its name">Set up all</button><button id="names-hide" class="secondary" type="button">Hide all</button><button id="names-reveal" class="secondary" type="button">Reveal all</button></div>
+    <div class="status" id="names-status"></div>
+  </section>
+
   <details class="settings">
     <summary>Settings</summary>
     <div class="set">
@@ -83,6 +90,50 @@ document.getElementById("party-save")!.addEventListener("click", async () => {
   partyStatus.textContent = `Saved ${n}`;
   setTimeout(showParty, 1500);
 });
+// --- Names: the old Namer's bulk buttons --------------------------------------------------
+// The party never gets a placeholder: anyone linked to a DiceCloud sheet is skipped.
+async function namesTargets() {
+  const [items, maps] = await Promise.all([OBR.scene.items.getItems((i) => i.layer === "CHARACTER"), getMappings()]);
+  const party = new Set(maps.map((m) => m.itemId));
+  return items.filter((i) => !party.has(i.id));
+}
+function namesSay(text: string, tone = "") {
+  const el = document.getElementById("names-status")!;
+  el.textContent = text;
+  el.className = `status ${tone}`;
+}
+document.getElementById("names-setup")!.addEventListener("click", async () => {
+  try {
+    const items = await namesTargets();
+    const { people } = await loadCast(true);
+    let linked = 0;
+    const unsure: string[] = [];
+    for (const it of items) {
+      const d = it.metadata[NAMER_KEY] as NamerData | undefined;
+      const known = linkedPerson(people, it);
+      // already linked and set up: leave it; set up by the old Namer as a "Stranger": try again
+      if (d && known && !d.placeholder.startsWith("Stranger")) continue;
+      const p = known ?? clearMatch(people, d?.realName ?? it.name);
+      if (!p) {
+        unsure.push(d?.realName ?? it.name);
+        continue;
+      }
+      await linkTokens([it.id], p, d ? d.hidden : true);
+      linked++;
+    }
+    namesSay(`${linked ? `Set up ${linked}.` : "Nothing new to set up."}${unsure.length ? ` Not sure who these are (right-click → This is…): ${[...new Set(unsure)].join(", ")}` : ""}`, unsure.length ? "" : "ok");
+  } catch (err) {
+    namesSay(`Couldn't: ${err instanceof Error ? err.message : String(err)}`, "error");
+  }
+});
+for (const [id, hide] of [["names-hide", true], ["names-reveal", false]] as const) {
+  document.getElementById(id)!.addEventListener("click", async () => {
+    const items = (await namesTargets()).filter((i) => (i.metadata[NAMER_KEY] as NamerData | undefined)?.hidden === !hide);
+    await setHidden(items.map((i) => i.id), hide);
+    namesSay(items.length ? `${hide ? "Hid" : "Revealed"} ${items.length}.` : "Nothing to change.", "ok");
+  });
+}
+
 document.getElementById("party-add")!.addEventListener("click", async () => {
   const n = await addPartyToScene();
   partyStatus.textContent = n ? `Added ${n}` : "Everyone's already here";
