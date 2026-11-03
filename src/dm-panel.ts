@@ -115,6 +115,74 @@ async function fastSend(msg: LiveMessage): Promise<boolean> {
   if (await sendDirect(msg)) return true;
   return (await sendLocal("owlbear", msg)) > 0;
 }
+
+// --- HP history: every change to a combatant's HP, whoever made it ----------------------
+// For settling "how did I get to 9?" at the table. Built by comparing each live roster
+// with the last HP seen for that token (kept in this browser, so changes made while the
+// panel was shut still show up when it reopens). A change the panel itself asked for
+// carries its reason; anything else is put down to the sheet or to Owlbear.
+interface HpLogEntry { at: number; round: number; turn?: string; hp: number; temp: number; was: number; wasTemp: number; why: string }
+interface HpLogStore { last: Record<string, { hp: number; temp: number }>; log: Record<string, HpLogEntry[]> }
+const HP_LOG_KEY = "abelon.hpLog.v1";
+const HP_LOG_KEEP_MS = 3 * 24 * 3600_000;
+const hpWhy = new Map<string, { why: string; until: number }>();
+function loadHpLog(): HpLogStore {
+  try {
+    const s = JSON.parse(localStorage.getItem(HP_LOG_KEY) || "null");
+    if (s && typeof s === "object" && s.last && s.log) return s as HpLogStore;
+  } catch { /* storage unavailable or corrupt: start fresh */ }
+  return { last: {}, log: {} };
+}
+const hpLog = loadHpLog();
+function saveHpLog() {
+  try { localStorage.setItem(HP_LOG_KEY, JSON.stringify(hpLog)); } catch { /* keep it in memory only */ }
+}
+/** say why the panel is about to change this token's HP, so the history can show it */
+function noteHp(itemId: string, why: string) {
+  hpWhy.set(itemId, { why, until: Date.now() + 20_000 });
+}
+function trackHp(list: LiveCombatant[], round: number, turnName?: string) {
+  const now = Date.now();
+  let changed = false;
+  for (const c of list) {
+    if (typeof c.hp !== "number" || !Number.isFinite(c.hp)) continue; // no reading this time: wait for one
+    const temp = c.tempHp ?? 0;
+    const prev = hpLog.last[c.itemId];
+    if (prev && (prev.hp !== c.hp || prev.temp !== temp)) {
+      const note = hpWhy.get(c.itemId);
+      const why = note && note.until > now ? note.why : c.sheet ? "Changed on their DiceCloud sheet" : "Changed in Owlbear";
+      hpWhy.delete(c.itemId);
+      const rows = (hpLog.log[c.itemId] ??= []);
+      rows.push({ at: now, round, turn: turnName, hp: c.hp, temp, was: prev.hp, wasTemp: prev.temp, why });
+      if (rows.length > 100) rows.splice(0, rows.length - 100);
+    }
+    if (!prev || prev.hp !== c.hp || prev.temp !== temp) {
+      hpLog.last[c.itemId] = { hp: c.hp, temp };
+      changed = true;
+    }
+  }
+  for (const [id, rows] of Object.entries(hpLog.log)) {
+    const kept = rows.filter((r) => now - r.at < HP_LOG_KEEP_MS);
+    if (kept.length !== rows.length) {
+      changed = true;
+      if (kept.length) hpLog.log[id] = kept;
+      else delete hpLog.log[id];
+    }
+  }
+  if (changed) saveHpLog();
+}
+function hpHistory(itemId: string): string {
+  const rows = hpLog.log[itemId];
+  if (!rows?.length) return "";
+  const fmt = (hp: number, temp: number) => `${hp}${temp ? `<small>+${temp}</small>` : ""}`;
+  const items = rows.slice().reverse().map((r) => {
+    const d = r.hp + r.temp - (r.was + r.wasTemp);
+    const time = new Date(r.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const when = r.round ? `R${r.round}${r.turn ? ` · ${escapeHtml(r.turn)}` : ""}` : "Out of combat";
+    return `<li><span class="hl-when">${time} · ${when}</span><span class="hl-hp">${fmt(r.was, r.wasTemp)} → <b>${fmt(r.hp, r.temp)}</b> <em class="${d < 0 ? "down" : "up"}">${d > 0 ? "+" : ""}${d}</em></span><span class="hl-why">${escapeHtml(r.why)}</span></li>`;
+  }).join("");
+  return `<details class="hp-log"><summary>HP history (${rows.length})</summary><ul>${items}</ul></details>`;
+}
 async function showLink() {
   const linked = await sendDirect({ kind: "ping", id: crypto.randomUUID(), at: new Date().toISOString() });
   const relay = linked ? undefined : await relayStatus();
@@ -164,6 +232,7 @@ onOwlbear((m) => {
     if (fp === lastLiveFp) return;
     lastLiveFp = fp;
     liveRoster = m.combatants;
+    trackHp(m.combatants, round, m.combatants.find((c) => c.itemId === turnId)?.name);
     roster = { savedAt: new Date().toISOString(), combatants: m.combatants.map(asEntry) };
     const ids = new Set(m.combatants.map((c) => c.itemId));
     if (targets.some((id) => !ids.has(id))) setTargets(targets.filter((id) => ids.has(id)));
@@ -1087,6 +1156,7 @@ async function applyTarget(t: ResolveTarget, forgeOnly = false) {
   t.error = undefined;
   t.ref = crypto.randomUUID();
   render();
+  noteHp(t.itemId, `${r.healing ? "Healed by" : "Hit by"} ${r.shownWho}: ${r.action} (${amount})`);
   const sent = await fastSend({ kind: "hp", id: t.ref, at: new Date().toISOString(), itemId: t.itemId, damage: r.healing ? -amount : amount, forgeOnly });
   if (!sent) {
     t.state = "error";
@@ -1103,6 +1173,7 @@ function undoTarget(t: ResolveTarget) {
   if (!t.result?.before) return;
   const ref = crypto.randomUUID();
   t.undoUntil = undefined;
+  noteHp(t.itemId, "Undo");
   fastSend({ kind: "hp", id: ref, at: new Date().toISOString(), itemId: t.itemId, set: { hp: t.result.before.hp, temp: t.result.before.temp } });
   log({ who: combatant(t.itemId)?.realName || "?", action: "Undo", text: `HP put back to ${t.result.before.hp}${t.result.before.temp ? ` (+${t.result.before.temp})` : ""}` }, { description: "" }, true);
   t.state = undefined;
@@ -1231,6 +1302,7 @@ function applyHpText(id: string, text: string) {
       meta.className = "warn";
     }
   });
+  if (/^([-+=t]?)\d+$/.test(t)) noteHp(id, `Typed "${t}"`);
   if ((m = t.match(/^-(\d+)$/))) send({ damage: Number(m[1]) });
   else if ((m = t.match(/^\+(\d+)$/))) send({ damage: -Number(m[1]) });
   else if ((m = t.match(/^=?(\d+)$/))) send({ set: { hp: Number(m[1]), temp: c.tempHp ?? 0 } });
@@ -1414,6 +1486,7 @@ function render() {
           ${isOpen ? `
             <div class="body">
               ${statusEditor(c.itemId)}
+              ${hpHistory(c.itemId)}
               ${entry ? statBlock(entry, c) : ""}
             </div>` : ""}
         </section>`;

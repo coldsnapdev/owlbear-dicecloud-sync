@@ -350,6 +350,14 @@
       .settings input { flex: 1; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; font: 14px "Crimson Pro", serif; background: var(--panel-2); color: var(--ink); }
       #save-webhook, #save-gh-token { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--brass-deep); background: transparent; color: var(--brass); cursor: pointer; font: 600 11px/1 Cinzel, serif; letter-spacing: .08em; text-transform: uppercase; }
       .hint { margin: 4px 0; }
+      .hp-log { margin: 8px 0 4px; font-size: 14px; }
+      .hp-log summary { cursor: pointer; color: var(--ink-soft); font-family: Cinzel, serif; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+      .hp-log ul { list-style: none; margin: 6px 0 0; padding: 0; max-height: 220px; overflow-y: auto; border-left: 2px solid var(--line); }
+      .hp-log li { display: grid; grid-template-columns: 9.5em 8.5em 1fr; gap: 8px; padding: 3px 8px; border-bottom: 1px dashed var(--line); align-items: baseline; }
+      .hp-log .hl-when { color: var(--ink-faint); font-size: 12px; }
+      .hp-log .hl-why { color: var(--ink-soft); font-style: italic; }
+      .hp-log em { font-style: normal; font-size: 12px; margin-left: 4px; }
+      .hp-log em.down { color: #f08a72; } .hp-log em.up { color: #74cf84; }
     </style>
   </head>
   <body>
