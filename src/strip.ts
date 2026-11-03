@@ -79,12 +79,34 @@ stage.className = "stage";
 const els = new Map<string, HTMLElement>();
 const lastSlot = new Map<string, number>();
 
+// Folding the strip away (each player's own choice, remembered on their computer): it shrinks
+// to a small pill saying whose turn it is, so a tool bar behind it can be reached.
+let mini = false;
+try {
+  mini = localStorage.getItem("abelon.strip.mini") === "1";
+} catch { /* no storage */ }
+function setMini(on: boolean) {
+  mini = on;
+  try {
+    localStorage.setItem("abelon.strip.mini", on ? "1" : "0");
+  } catch { /* no storage */ }
+  lastCountSent = -2; // force a size report
+  render();
+}
+
 function render() {
   const order = units(items, party);
   const list = order.filter((u) => gm || u.visible);
   document.body.classList.toggle("gm", gm);
   const n = list.length;
   const live = !!state.turn && n > 0;
+  if (mini) {
+    const who = live ? order.find((u) => u.id === state.turn) : undefined;
+    const name = who && (gm || who.visible) ? who.name : undefined;
+    strip.innerHTML = `<button type="button" class="mini-pill" data-c="expand" title="Show the initiative order">⚔ ${live ? `Round ${state.round || 1}${name ? ` · ${esc(name)}` : ""}` : "Combat"} <span>▾</span></button>`;
+    reportWidth(n);
+    return;
+  }
   // who's in the middle: the active combatant (for players, if it's hidden from them, the
   // next one they can see, shown at normal size)
   let centre = 0;
@@ -112,6 +134,9 @@ function render() {
   if (!strip.contains(stage)) {
     strip.innerHTML = "";
     strip.appendChild(stage);
+    const fold = Object.assign(document.createElement("button"), { type: "button", className: "fold", title: "Fold the initiative order away", textContent: "▴" });
+    fold.dataset.c = "fold";
+    strip.appendChild(fold);
   }
   const seen = new Set<string>();
   for (const u of list) {
@@ -239,7 +264,7 @@ let lastHeight = -1;
 let measureTimer: number | undefined;
 function contentHeight(): number {
   let bottom = 0;
-  strip.querySelectorAll<HTMLElement>(".chip, .arrow, .round-box").forEach((el) => {
+  strip.querySelectorAll<HTMLElement>(".chip, .arrow, .round-box, .mini-pill").forEach((el) => {
     bottom = Math.max(bottom, el.getBoundingClientRect().bottom);
   });
   return Math.ceil(bottom + 8);
@@ -249,7 +274,7 @@ function send() {
   if (lastCount === lastCountSent && Math.abs(height - lastHeight) < 2) return;
   lastCountSent = lastCount;
   lastHeight = height;
-  OBR.broadcast.sendMessage("com.abelon.combat/strip-size", { count: lastCount, height }, { destination: "LOCAL" });
+  OBR.broadcast.sendMessage("com.abelon.combat/strip-size", { count: lastCount, height, mini }, { destination: "LOCAL" });
 }
 let lastCountSent = -2;
 function reportWidth(n: number) {
@@ -260,9 +285,11 @@ function reportWidth(n: number) {
 }
 
 strip.addEventListener("click", async (e) => {
-  if (!gm) return;
   const t = e.target as HTMLElement;
   const c = t.closest<HTMLElement>("[data-c]")?.dataset.c;
+  if (c === "fold") return setMini(true);
+  if (c === "expand") return setMini(false);
+  if (!gm) return;
   if (c === "next") return step(1);
   if (c === "prev") return step(-1);
   const id = t.closest<HTMLElement>(".chip")?.dataset.id;

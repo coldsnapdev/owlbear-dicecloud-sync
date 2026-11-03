@@ -1,5 +1,28 @@
 import OBR from "@owlbear-rodeo/sdk";
-import { CLOCK_KEY, dateText, daylight, partOfDay, timeText, validClock, type Clock } from "./clock";
+import { CLOCK_ID, CLOCK_KEY, dateText, daylight, partOfDay, timeText, validClock, type Clock } from "./clock";
+
+// Click the clock to fold it down to just its sky (each player's own choice), and again to open it
+let mini = false;
+try {
+  mini = localStorage.getItem("abelon.clock.mini") === "1";
+} catch { /* no storage */ }
+const plate = () => document.getElementById("plate")!;
+function applyMini(resize: boolean) {
+  plate().classList.toggle("mini", mini);
+  plate().title = mini ? "Show the time" : "Fold the clock away";
+  if (resize && !new URLSearchParams(location.search).get("demo")) {
+    void OBR.popover.setWidth(CLOCK_ID, mini ? 50 : 250);
+    void OBR.popover.setHeight(CLOCK_ID, mini ? 50 : 58);
+  }
+}
+document.addEventListener("click", () => {
+  mini = !mini;
+  try {
+    localStorage.setItem("abelon.clock.mini", mini ? "1" : "0");
+  } catch { /* no storage */ }
+  applyMini(true);
+});
+applyMini(false);
 
 function draw(c: Clock) {
   const light = daylight(c.min);

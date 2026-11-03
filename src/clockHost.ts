@@ -2,12 +2,18 @@
 // (the combat strip takes that spot during one). It reads the room's in-game clock.
 import OBR from "@owlbear-rodeo/sdk";
 import { BUILD } from "./build";
-import { CLOCK_HIDE_KEY, CLOCK_KEY, validClock } from "./clock";
+import { CLOCK_HIDE_KEY, CLOCK_ID, CLOCK_KEY, validClock } from "./clock";
 import { inCombat } from "./combat";
 import { onTopChange, topOffset } from "./toolOffset";
 
-const CLOCK_ID = "com.abelon.time/clock";
 let open = false;
+const clockMini = () => {
+  try {
+    return localStorage.getItem("abelon.clock.mini") === "1";
+  } catch {
+    return false;
+  }
+};
 let busy = false;
 let again = false;
 
@@ -25,8 +31,8 @@ async function update() {
       await OBR.popover.open({
         id: CLOCK_ID,
         url: new URL(`clock.html?v=${BUILD}`, location.href).href,
-        width: 250,
-        height: 58,
+        width: clockMini() ? 50 : 250,
+        height: clockMini() ? 50 : 58,
         anchorReference: "POSITION",
         anchorPosition: { left: Math.round(vw / 2), top: topOffset() },
         anchorOrigin: { horizontal: "CENTER", vertical: "TOP" },

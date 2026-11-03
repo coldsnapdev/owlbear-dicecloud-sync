@@ -24,7 +24,9 @@ let stripOpen = false;
 let stripWidth = 0;
 let openedAtVw = 0;
 
+let stripMini = false;
 function widthFor(n: number, vw: number) {
+  if (stripMini) return 260;
   return Math.max(220, Math.min(vw - 100, (n + 1) * CHIP_W + 30 + (gm ? 70 : 0)));
 }
 async function updateStrip() {
@@ -548,8 +550,10 @@ export async function startCombatHost() {
   }, 3000);
   // the strip reports how tall its contents are (statuses under the big active shield, etc.)
   OBR.broadcast.onMessage("com.abelon.combat/strip-size", (ev) => {
-    const h = Number((ev.data as { height?: number } | undefined)?.height);
-    if (Number.isFinite(h) && h > 0) wantHeight = Math.max(120, Math.min(400, Math.ceil(h)));
+    const d = ev.data as { height?: number; mini?: boolean } | undefined;
+    stripMini = !!d?.mini;
+    const h = Number(d?.height);
+    if (Number.isFinite(h) && h > 0) wantHeight = Math.max(stripMini ? 30 : 120, Math.min(400, Math.ceil(h)));
     updateStrip().catch(() => {});
   });
 }

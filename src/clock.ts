@@ -1,5 +1,6 @@
 // Abelon's in-game clock: one date and time for the whole room, kept live from the DM panel.
 // Calendar (locked): 9 months of 40 days (5 weeks of 8), 24-hour days, a 360-day year.
+export const CLOCK_ID = "com.abelon.time/clock"; // the on-screen clock's popover
 export const CLOCK_KEY = "com.abelon.time/now"; // room metadata
 export const CLOCK_HIDE_KEY = "com.abelon.time/hide"; // room: don't show the on-screen clock
 export interface Clock { year: number; month: number; day: number; min: number }
