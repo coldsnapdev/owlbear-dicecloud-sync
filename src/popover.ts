@@ -42,7 +42,6 @@ app.innerHTML = `
   <section class="block">
     <h2>Party</h2>
     <div class="row party-row"><button id="party-add" type="button">Add party to scene</button><button id="party-save" class="secondary" type="button" title="Remember the sheet-linked tokens in this scene as the party">Save party</button><span id="party-status" class="status"></span></div>
-    <p class="hint">Party members link to a DiceCloud sheet. Everyone else waits under "Not in the party".</p>
     <div id="mapping-list">Loading tokens…</div>
     <div id="ignored-list"></div>
   </section>
@@ -280,7 +279,7 @@ async function renderMappings() {
   const others = allForgeItems.filter((i) => !partyItems.includes(i)).sort((a, b) => a.name.localeCompare(b.name));
   renderOthers(others);
 
-  mappingList.innerHTML = partyItems.length ? "" : `<p class="hint">No party members in this scene. Add them from "Not in the party" below.</p>`;
+  mappingList.innerHTML = partyItems.length ? "" : "";
   for (const item of partyItems) {
     const existing = mappingByItem.get(item.id);
     const forgeStats = readForgeStats(item.metadata);
