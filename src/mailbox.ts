@@ -39,6 +39,7 @@ export interface RosterEntry {
   sheet?: boolean;
   ally?: boolean;
   standby?: boolean;
+  fallen?: "dead" | "down";
 }
 
 export interface RosterFile {

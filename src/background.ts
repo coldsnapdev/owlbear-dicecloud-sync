@@ -1,4 +1,4 @@
-import { addToCombat, ALLY_KEY, applyStatBlock, endCombat, getState, onStandby, patchState, removeFromStandby, step } from "./combat";
+import { addToCombat, fallenOf, setFallen, ALLY_KEY, applyStatBlock, endCombat, getState, onStandby, patchState, removeFromStandby, step } from "./combat";
 import { mirrorStatuses, startCombatHost } from "./combatHost";
 import { BUILD } from "./build";
 import { refreshPages, REFRESH_CHANNEL } from "./refresh";
@@ -244,6 +244,12 @@ function handleLiveMessage(msg: LiveMessage) {
       : msg.op === "end" ? endCombat()
       : msg.op === "join" ? addToCombat(Object.keys(msg.values ?? {}))
       : msg.op === "unstage" ? removeFromStandby(Object.keys(msg.values ?? {}))
+      : msg.op === "fallen" ? Promise.all(
+          ([["dead", 1], ["down", 2], [null, null]] as const).map(([state, code]) => {
+            const ids = Object.entries(msg.values ?? {}).filter(([, v]) => (v ?? null) === code).map(([id]) => id);
+            return ids.length ? setFallen(ids, state) : Promise.resolve();
+          }),
+        )
       : msg.op === "ally" ? OBR.scene.items.updateItems(Object.keys(msg.values ?? {}), (its) => {
           for (const it of its) {
             if (msg.values![it.id]) it.metadata[ALLY_KEY] = true;
@@ -355,7 +361,7 @@ const extra = (it?: Item) => {
   if (!it) return {};
   const init = it.metadata["com.battle-system.forge/init"];
   const dex = Number(it.metadata["com.battle-system.forge/Z018"]);
-  return { hasInit: init !== undefined && init !== "" || undefined, visible: it.visible, dex: Number.isFinite(dex) && dex > 0 ? dex : undefined, ally: !!it.metadata[ALLY_KEY] || undefined };
+  return { hasInit: init !== undefined && init !== "" || undefined, visible: it.visible, dex: Number.isFinite(dex) && dex > 0 ? dex : undefined, ally: !!it.metadata[ALLY_KEY] || undefined, fallen: fallenOf(it) };
 };
 async function pushRoster(force = false) {
   if (!panelWindow || !(await OBR.scene.isReady())) return;

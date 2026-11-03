@@ -39,7 +39,9 @@ function chip(u: Unit, roundLabel?: string): string {
   const name = u.name;
   const init = `<span class="init ${u.init === undefined ? "none" : ""}">${u.init ?? "–"}</span>`;
   const bar = pct !== undefined ? `<div class="hp ${tone}"><i style="width:${pct.toFixed(0)}%"></i>${u.tempHp ? "<b></b>" : ""}</div>` : "";
-  const stats = showNums
+  const stats = u.fallen === "dead"
+    ? `<div class="dead-mark"><img src="icons/fallen-dead.svg" alt=""><small>Dead</small></div>`
+    : showNums
     ? `<div class="stats">
         <div class="stat hpv ${tone}"><small>HP</small><span>${u.hp ?? "–"}${u.tempHp ? `<em>+${u.tempHp}</em>` : ""}</span></div>
         <div class="stat acv"><small>AC</small><span>${u.ac ?? "–"}</span></div>
@@ -126,7 +128,7 @@ function render() {
       stage.appendChild(el);
       els.set(u.id, el);
     }
-    el.className = `chip ${u.party ? "party" : u.ally ? "ally" : "npc"} ${isActive ? "turn" : ""} ${u.visible ? "" : "hidden"} ${live && k !== 0 && Math.abs(k) > 1 ? "far" : ""}`;
+    el.className = `chip ${u.party ? "party" : u.ally ? "ally" : "npc"} ${u.fallen ?? ""} ${isActive ? "turn" : ""} ${u.visible ? "" : "hidden"} ${live && k !== 0 && Math.abs(k) > 1 ? "far" : ""}`;
     el.title = gm && u.realName && u.realName !== u.name ? `${u.name} (really ${u.realName})` : u.name;
     el.innerHTML = chip(u, label);
     const x = offsetFor(k, live);

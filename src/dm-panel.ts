@@ -209,7 +209,7 @@ let round = 0;
 let autoOpened: string | undefined;
 let scrollToTurn = false;
 let lastLiveFp = "";
-const asEntry = (c: LiveCombatant): RosterEntry => ({ itemId: c.itemId, name: c.name, realName: c.realName, initiative: c.initiative, ac: c.ac, hp: c.hp, maxHp: c.maxHp, tempHp: c.tempHp, hasInit: c.hasInit, visible: c.visible, dex: c.dex, sheet: c.sheet, ally: c.ally, standby: c.standby });
+const asEntry = (c: LiveCombatant): RosterEntry => ({ itemId: c.itemId, name: c.name, realName: c.realName, initiative: c.initiative, ac: c.ac, hp: c.hp, maxHp: c.maxHp, tempHp: c.tempHp, hasInit: c.hasInit, visible: c.visible, dex: c.dex, sheet: c.sheet, ally: c.ally, standby: c.standby, fallen: c.fallen });
 onOwlbear((m) => {
   if (m.kind === "reload") {
     // the extension was just updated: fetch this page fresh and reload (the link comes back by itself)
@@ -232,6 +232,7 @@ onOwlbear((m) => {
     if (fp === lastLiveFp) return;
     lastLiveFp = fp;
     liveRoster = m.combatants;
+    syncFallen(m.combatants);
     trackHp(m.combatants, round, m.combatants.find((c) => c.itemId === turnId)?.name);
     roster = { savedAt: new Date().toISOString(), combatants: m.combatants.map(asEntry) };
     const ids = new Set(m.combatants.map((c) => c.itemId));
@@ -885,6 +886,38 @@ function addStatus(itemId: string, key: string, dmOnly: boolean, customText?: st
     return [...list, { key, label: def.label, ...(def.max ? { value: 1 } : {}), ...(dmOnly ? { dmOnly } : {}) }];
   });
 }
+// --- The fallen: dead (tipped over, skull, skipped) or down (a party member at 0 HP) -------
+// The token carries the state; the panel keeps a matching status chip, added or removed
+// whenever the state changes, from here or from the right-click menu in Owlbear.
+const lastFallen = new Map<string, string | undefined>();
+function syncFallen(list: LiveCombatant[]) {
+  for (const c of list) {
+    const known = lastFallen.has(c.itemId);
+    const was = lastFallen.get(c.itemId);
+    lastFallen.set(c.itemId, c.fallen);
+    if (!known || was === c.fallen) continue; // first sight after a reload: the saved statuses already match
+    const have = (k: string) => (statuses[c.itemId] ?? []).some((s) => s.key === k);
+    if (was === "dead" && have("dead")) changeStatuses(c.itemId, (l) => l.filter((s) => s.key !== "dead"));
+    if (was === "down" && have("unconscious")) changeStatuses(c.itemId, (l) => l.filter((s) => s.key !== "unconscious"));
+    if (c.fallen === "dead" && !have("dead")) addStatus(c.itemId, "dead", false);
+    if (c.fallen === "down" && !have("unconscious")) addStatus(c.itemId, "unconscious", false);
+  }
+}
+function isParty(itemId: string): boolean {
+  const c = combatant(itemId);
+  return !!c && (!!c.sheet || !entryFor(c).entry);
+}
+function sendFallen(itemId: string, state: "dead" | "down" | null) {
+  const c = combatant(itemId);
+  if (c) c.fallen = state ?? undefined;
+  fastSend({ kind: "combat", id: crypto.randomUUID(), at: new Date().toISOString(), op: "fallen", values: { [itemId]: state === "dead" ? 1 : state === "down" ? 2 : null } });
+  render();
+}
+function fallRow(c: RosterEntry): string {
+  const id = escapeHtml(c.itemId);
+  if (c.fallen) return `<div class="fall-row"><span class="fall-now ${c.fallen}">${c.fallen === "dead" ? "☠ Dead" : "Down"}</span><button type="button" class="fall-btn" data-fall="${id}" data-state="">Revive</button></div>`;
+  return `<div class="fall-row">${isParty(c.itemId) ? `<button type="button" class="fall-btn" data-fall="${id}" data-state="down">Down</button>` : ""}<button type="button" class="fall-btn dead" data-fall="${id}" data-state="dead">☠ Mark dead</button></div>`;
+}
 function headChips(itemId: string): string {
   const list = statuses[itemId] ?? [];
   return list.length
@@ -1238,7 +1271,7 @@ function resolveCard(): string {
       ? ""
       : r.parts.map((p, pi) => `<span class="rs-part"><b>${p.amount}</b> <i class="t-${e(p.type)}">${e(p.type)}</i><span class="seg">${MULTS.map(([m, l]) => `<button type="button" class="rs-m ${t.mults[pi] === m ? "on" : ""}" data-rs="mult" data-t="${ti}" data-p="${pi}" data-m="${m}" ${t.state ? "disabled" : ""}>${l}</button>`).join("")}</span></span>`).join("");
     const res = t.result?.after;
-    const after = t.state === "done" && res ? `<span class="rs-done">${t.result!.before!.hp}${t.result!.before!.temp ? `+${t.result!.before!.temp}` : ""} → <b>${res.hp}</b>${res.temp ? `+${res.temp}` : ""}${res.max ? `/${res.max}` : ""} <small>${t.result!.via === "dicecloud" ? "sheet" : "Forge"}</small></span>${t.undoUntil && t.undoUntil > Date.now() ? `<button type="button" class="rs-mini" data-rs="undo" data-t="${ti}">Undo</button>` : ""}${res.hp === 0 && !r.healing ? `<button type="button" class="rs-mini" data-rs="ko" data-t="${ti}">${pc ? "Unconscious" : "Unconscious / dead"}</button>` : ""}` : "";
+    const after = t.state === "done" && res ? `<span class="rs-done">${t.result!.before!.hp}${t.result!.before!.temp ? `+${t.result!.before!.temp}` : ""} → <b>${res.hp}</b>${res.temp ? `+${res.temp}` : ""}${res.max ? `/${res.max}` : ""} <small>${t.result!.via === "dicecloud" ? "sheet" : "Forge"}</small></span>${t.undoUntil && t.undoUntil > Date.now() ? `<button type="button" class="rs-mini" data-rs="undo" data-t="${ti}">Undo</button>` : ""}${res.hp === 0 && !r.healing ? `<button type="button" class="rs-mini" data-rs="ko" data-t="${ti}">${pc ? "Down" : "☠ Dead"}</button>` : ""}` : "";
     const action = t.missed
       ? `<span class="rs-missed">Missed</span><button type="button" class="rs-mini" data-rs="hit-anyway" data-t="${ti}">Hit anyway</button>`
       : t.state === "done"
@@ -1278,7 +1311,7 @@ function wireResolve() {
       else if (op === "undo") return undoTarget(t);
       else if (op === "drop") r.targets.splice(r.targets.indexOf(t), 1);
       else if (op === "hit-anyway") t.missed = undefined;
-      else if (op === "ko") { addStatus(t.itemId, "unconscious", false); return; }
+      else if (op === "ko") { sendFallen(t.itemId, isParty(t.itemId) ? "down" : "dead"); return; }
       render();
     }),
   );
@@ -1468,7 +1501,7 @@ function render() {
       const alias = c.realName && c.realName !== c.name ? `<span class="alias real-under"><small>Real name</small> ${escapeHtml(c.realName)}</span>` : "";
       const tag = !entry ? `<span class="tag">Party</span>` : manual ? `<span class="tag set">${escapeHtml(entry.name)}</span>` : "";
       return `
-        <section class="combatant ${isOpen ? "open" : ""} ${entry ? "" : "party"} ${c.itemId === turnId ? "turn" : ""}" data-id="${escapeHtml(c.itemId)}">
+        <section class="combatant ${isOpen ? "open" : ""} ${c.fallen ?? ""} ${entry ? "" : "party"} ${c.itemId === turnId ? "turn" : ""}" data-id="${escapeHtml(c.itemId)}">
           <div class="head" role="button" tabindex="0" aria-expanded="${isOpen}">
             <span class="init">${c.initiative}</span>
             <span class="who"><span class="name">${escapeHtml(c.name)}<span class="sb-pick" title="Stat block">▾<select class="pick" aria-label="Stat block">
@@ -1485,6 +1518,7 @@ function render() {
           </div>
           ${isOpen ? `
             <div class="body">
+              ${fallRow(c)}
               ${statusEditor(c.itemId)}
               ${hpHistory(c.itemId)}
               ${entry ? statBlock(entry, c) : ""}
@@ -1505,7 +1539,7 @@ function render() {
       const sb = c.standby
         ? `<span class="pc-sb"><button type="button" class="pc-join" data-join="${id}" title="Put in initiative: HP bar and strip">⚔ Join</button><button type="button" class="pc-unstage" data-unstage="${id}" title="Take off the panel">✕</button></span>`
         : init;
-      return `<div role="button" tabindex="0" class="pc-pill ${open.has(c.itemId) ? "on" : ""} ${!entry || c.sheet ? "party" : c.ally ? "ally" : "npc"} ${c.standby ? "standby" : ""} ${tgt ? "targeted" : ""} ${c.itemId === turnId ? "turn" : ""} ${c.visible === false ? "hid" : ""}" data-id="${id}" title="${escapeHtml(c.realName && c.realName !== c.name ? `${c.name} (really ${c.realName})` : c.name)}">${c.standby ? "" : roll}<span class="tgt" data-tgt="${id}" title="${tgt ? "Untarget" : "Target"}">◎</span><span class="pc-name">${escapeHtml(c.name)}</span>${sb}${hpBar(c)}${headChips(c.itemId)}</div>`;
+      return `<div role="button" tabindex="0" class="pc-pill ${c.fallen ?? ""} ${open.has(c.itemId) ? "on" : ""} ${!entry || c.sheet ? "party" : c.ally ? "ally" : "npc"} ${c.standby ? "standby" : ""} ${tgt ? "targeted" : ""} ${c.itemId === turnId ? "turn" : ""} ${c.visible === false ? "hid" : ""}" data-id="${id}" title="${escapeHtml(c.realName && c.realName !== c.name ? `${c.name} (really ${c.realName})` : c.name)}">${c.standby ? "" : roll}<span class="tgt" data-tgt="${id}" title="${tgt ? "Untarget" : "Target"}">◎</span><span class="pc-name">${c.fallen === "dead" ? "☠ " : ""}${escapeHtml(c.name)}</span>${sb}${hpBar(c)}${headChips(c.itemId)}</div>`;
   };
   const fighting = roster.combatants.filter((c) => !c.standby);
   const standing = roster.combatants.filter((c) => c.standby).sort((a, b) => a.name.localeCompare(b.name));
@@ -1540,6 +1574,12 @@ function render() {
   app.querySelector<HTMLButtonElement>(".tb-clear")?.addEventListener("click", () => setTargets([]));
   wireInitiative();
   wireHp();
+  app.querySelectorAll<HTMLButtonElement>("[data-fall]").forEach((b) =>
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      sendFallen(b.dataset.fall!, (b.dataset.state || null) as "dead" | "down" | null);
+    }),
+  );
   app.querySelectorAll<HTMLInputElement>(".ally-box").forEach((box) =>
     box.addEventListener("change", () => {
       const c = combatant(box.dataset.id!);

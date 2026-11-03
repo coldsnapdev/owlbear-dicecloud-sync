@@ -27,6 +27,7 @@ export const STATUS_DEFS: StatusDef[] = [
   { key: "rotten", label: "Rotten", colour: "#4a3a5e", max: 6, reminder: "Each stack −2 to a score (Str, Dex, Con, Int, Wis, Cha in order); −10 ft speed from stack 1. +1 Rot DC per stack. Magical healing clears all." },
   { key: "slowed", label: "Slowed", colour: "#3f6f9e", reminder: "Speed halved." },
   { key: "stunned", label: "Stunned", colour: "#a33b2e", reminder: "Incapacitated. Fails Str and Dex saves. Attacks against it have advantage." },
+  { key: "dead", label: "Dead", colour: "#3a342c", reminder: "Dead: tipped over on the map and skipped in the turn order. Revive (panel or right-click) to undo." },
   { key: "unconscious", label: "Unconscious", colour: "#a33b2e", reminder: "Incapacitated and prone, drops what it holds. Fails Str and Dex saves. Attacks against it have advantage; hits within 5 ft are crits." },
 ];
 

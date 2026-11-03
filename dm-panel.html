@@ -123,6 +123,15 @@
       .pc-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
       .sb-head { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; font: 600 10px/1 Cinzel, serif; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
       .pc-pill.standby { border-top-style: dashed; opacity: .88; }
+      .pc-pill.dead { filter: grayscale(1); opacity: .55; }
+      .pc-pill.down { box-shadow: inset 0 0 0 1px rgba(208,90,67,.8); }
+      .combatant.dead { filter: grayscale(.85); }
+      .fall-row { display: flex; align-items: center; gap: 8px; margin: 6px 0 10px; }
+      .fall-now { font: 700 11px/1 Cinzel, serif; letter-spacing: .12em; text-transform: uppercase; color: #a8967a; }
+      .fall-now.down { color: #f08a72; }
+      .fall-btn { font: 600 12px/1 "Crimson Pro", serif; padding: 4px 9px; border-radius: 5px; border: 1px solid var(--line); background: rgba(0,0,0,.25); color: var(--ink-soft); cursor: pointer; }
+      .fall-btn:hover { border-color: var(--brass); color: var(--ink); }
+      .fall-btn.dead:hover { border-color: #e0533d; color: #e0533d; }
       .pc-sb { display: inline-flex; gap: 4px; margin: 2px 0 1px; }
       .pc-join, .pc-unstage { font: 600 11px/1 "Crimson Pro", serif; padding: 3px 7px; border-radius: 5px; border: 1px solid var(--line); background: rgba(0,0,0,.25); color: var(--ink); cursor: pointer; }
       .pc-join:hover { border-color: #f0c869; color: #f0c869; }

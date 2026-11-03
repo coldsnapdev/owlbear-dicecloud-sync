@@ -13,6 +13,11 @@ export const COMBAT_KEY = "com.abelon.combat/state";
 export const ALLY_KEY = "com.abelon.combat/ally";
 /** on a token: on the DM panel (statuses, stat block, HP) but not in initiative, no HP bar, not on the strip */
 export const STANDBY_KEY = "com.abelon.combat/standby";
+/** on a token: fallen. "dead" (tipped over, skull, skipped in the turn order) or "down" (a party member at 0 HP) */
+export const FALLEN_KEY = "com.abelon.combat/fallen";
+export type FallenState = "dead" | "down";
+export interface Fallen { state: FallenState; /** the rotation before it was tipped over */ rot?: number }
+export const fallenOf = (item: Item) => (item.metadata[FALLEN_KEY] as Fallen | undefined)?.state;
 export const onStandby = (item: Item) => !!item.metadata[STANDBY_KEY] && !(FORGE_KEYS.onList in item.metadata);
 const NAMER_KEY = "com.abelon.namer/data";
 const MAPPING_KEY = "com.abelon.dicecloud-sync/mappings";
@@ -46,6 +51,7 @@ export interface Unit {
   party: boolean;
   /** an NPC on the party's side */
   ally: boolean;
+  fallen?: FallenState;
   image?: string;
 }
 
@@ -76,6 +82,7 @@ export function units(items: Item[], partyIds: Set<string>): Unit[] {
         visible: item.visible,
         party: partyIds.has(item.id),
         ally: !!m[ALLY_KEY],
+        fallen: fallenOf(item),
         image: (item as Item & { image?: { url?: string } }).image?.url,
       };
     })
@@ -148,16 +155,39 @@ export async function step(dir: 1 | -1) {
   const st = await getState();
   const at = order.findIndex((u) => u.id === st.turn);
   if (at < 0) return patchState({ turn: order[0].id, round: Math.max(1, st.round || 1) });
-  let next = at + dir;
+  // the dead are skipped (unless everyone is)
+  let next = at;
   let round = st.round || 1;
-  if (next >= order.length) {
-    next = 0;
-    round += 1;
-  } else if (next < 0) {
-    next = order.length - 1;
-    round = Math.max(1, round - 1);
+  for (let tries = 0; tries < order.length; tries++) {
+    next += dir;
+    if (next >= order.length) {
+      next = 0;
+      round += 1;
+    } else if (next < 0) {
+      next = order.length - 1;
+      round = Math.max(1, round - 1);
+    }
+    if (order[next].fallen !== "dead") break;
   }
   await patchState({ turn: order[next].id, round });
+}
+
+/** Mark tokens dead or down (or revive them with null). Dead tokens are tipped over; reviving stands them back up. */
+export async function setFallen(ids: string[], state: FallenState | null) {
+  await OBR.scene.items.updateItems(ids, (items) => {
+    for (const it of items) {
+      const prev = it.metadata[FALLEN_KEY] as Fallen | undefined;
+      const upright = prev?.rot ?? it.rotation;
+      if (state === "dead") {
+        it.rotation = upright + 90;
+        it.metadata[FALLEN_KEY] = { state, rot: upright } satisfies Fallen;
+      } else {
+        if (prev?.rot !== undefined) it.rotation = prev.rot;
+        if (state) it.metadata[FALLEN_KEY] = { state } satisfies Fallen;
+        else delete it.metadata[FALLEN_KEY];
+      }
+    }
+  });
 }
 
 export async function endCombat() {

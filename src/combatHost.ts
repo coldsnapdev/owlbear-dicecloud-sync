@@ -3,8 +3,8 @@
 //  - right-click "Add to combat" / "Remove from combat" (GM)
 //  - HP bars under tokens (drawn by the GM's client, seen by everyone)
 //  - mirroring statuses into the combat state so players' strips can show them
-import OBR, { buildShape, type Item } from "@owlbear-rodeo/sdk";
-import { addToCombat, addToStandby, removeFromStandby, STANDBY_KEY, applyStatBlock, COMBAT_KEY, partyIds, getState, inCombat, removeFromCombat, type CombatState, type PublicStatus } from "./combat";
+import OBR, { buildImage, buildShape, type Item } from "@owlbear-rodeo/sdk";
+import { addToCombat, addToStandby, removeFromStandby, STANDBY_KEY, FALLEN_KEY, fallenOf, setFallen, applyStatBlock, COMBAT_KEY, partyIds, getState, inCombat, removeFromCombat, type CombatState, type PublicStatus } from "./combat";
 import { FORGE_KEYS } from "./forge";
 import { GM_STATUS_KEY } from "./stripKeys";
 import { BUILD } from "./build";
@@ -86,7 +86,7 @@ function contextMenus() {
   const panelIcon = new URL("icons/panel.svg", location.href).href;
   OBR.contextMenu.create({
     id: "com.abelon.combat/standby-add",
-    icons: [{ icon: panelIcon, label: "Add to panel (not initiative)", filter: { roles: ["GM"], every: [{ key: ["metadata", FORGE_KEYS.onList], value: undefined }, { key: ["metadata", STANDBY_KEY], value: undefined }] } }],
+    icons: [{ icon: panelIcon, label: "Add to panel", filter: { roles: ["GM"], every: [{ key: ["metadata", FORGE_KEYS.onList], value: undefined }, { key: ["metadata", STANDBY_KEY], value: undefined }] } }],
     onClick: async (ctx) => {
       await addToStandby(ctx.items.map((i) => i.id));
       await fillFromBestiary(ctx.items).catch((err) => console.warn("[abelon] couldn't fill stats from the bestiary", err));
@@ -96,6 +96,17 @@ function contextMenus() {
     id: "com.abelon.combat/standby-remove",
     icons: [{ icon: panelIcon, label: "Remove from panel", filter: { roles: ["GM"], every: [{ key: ["metadata", STANDBY_KEY], value: undefined, operator: "!=" }, { key: ["metadata", FORGE_KEYS.onList], value: undefined }] } }],
     onClick: (ctx) => removeFromStandby(ctx.items.map((i) => i.id)),
+  });
+  const skull = new URL("icons/fallen-dead.svg", location.href).href;
+  OBR.contextMenu.create({
+    id: "com.abelon.combat/dead",
+    icons: [{ icon: skull, label: "Mark dead", filter: { roles: ["GM"], every: [{ key: "layer", value: "CHARACTER" }, { key: ["metadata", FALLEN_KEY], value: undefined }] } }],
+    onClick: (ctx) => setFallen(ctx.items.map((i) => i.id), "dead"),
+  });
+  OBR.contextMenu.create({
+    id: "com.abelon.combat/revive",
+    icons: [{ icon: skull, label: "Revive", filter: { roles: ["GM"], every: [{ key: ["metadata", FALLEN_KEY], value: undefined, operator: "!=" }] } }],
+    onClick: (ctx) => setFallen(ctx.items.map((i) => i.id), null),
   });
 }
 
@@ -148,7 +159,7 @@ async function drawBars() {
   const dpi = await OBR.scene.grid.getDpi();
   const bars = items.filter((i) => i.metadata[BAR_KEY]);
   // only during combat: the bars appearing is part of the signal that a fight is on
-  const tokens = items.filter((i) => !i.metadata[BAR_KEY] && inCombat(i) && (num(i.metadata[FORGE_KEYS.maxHP]) ?? 0) > 0);
+  const tokens = items.filter((i) => !i.metadata[BAR_KEY] && !i.metadata[FALL_KEY] && inCombat(i) && fallenOf(i) !== "dead" && (num(i.metadata[FORGE_KEYS.maxHP]) ?? 0) > 0);
   const keep = new Set<string>();
   const add: Item[] = [];
   for (const t of tokens) {
@@ -203,6 +214,93 @@ async function drawBars() {
     }
   }
   const stale = bars.filter((e) => !keep.has(e.id)).map((e) => e.id);
+  if (stale.length) await OBR.scene.items.deleteItems(stale);
+  if (add.length) await OBR.scene.items.addItems(add);
+  await drawFallen(items, dpi);
+}
+
+// --- The fallen ---------------------------------------------------------------------------
+// A dead token: tipped over (its rotation, set by setFallen), a dark wash and a skull. A party
+// member who's down: a lighter wash and a cracked heart, standing, and it clears itself once
+// they're healed above 0 HP. Everyone sees these; they follow the token's own visibility.
+const FALL_KEY = "com.abelon.combat/fallen-mark";
+const FALL_STYLE = 1;
+interface FallMeta { parent: string; part: string; sig: string }
+async function drawFallen(items: Item[], dpi: number) {
+  const marks = items.filter((i) => i.metadata[FALL_KEY]);
+  const fallen = items.filter((i) => !i.metadata[FALL_KEY] && !i.metadata[BAR_KEY] && fallenOf(i));
+  // a party member healed above 0 stands back up by themselves
+  const healed = fallen.filter((t) => fallenOf(t) === "down" && (num(t.metadata[FORGE_KEYS.currentHP]) ?? 0) > 0);
+  if (healed.length) {
+    await setFallen(healed.map((t) => t.id), null);
+    return; // the change brings us back here
+  }
+  const keep = new Set<string>();
+  const add: Item[] = [];
+  for (const t of fallen) {
+    const dead = fallenOf(t) === "dead";
+    const b = await OBR.scene.items.getItemBounds([t.id]);
+    const size = Math.min(b.width, b.height);
+    const centre = { x: Math.round(b.center.x), y: Math.round(b.center.y) };
+    const want = [
+      { part: "wash", sig: JSON.stringify([FALL_STYLE, "wash", dead, centre, size, t.visible]) },
+      { part: "icon", sig: JSON.stringify([FALL_STYLE, "icon", dead, centre, size, t.visible]) },
+    ];
+    for (const w of want) {
+      const match = marks.find((e) => {
+        const m = e.metadata[FALL_KEY] as FallMeta;
+        return !keep.has(e.id) && m.parent === t.id && m.part === w.part && m.sig === w.sig;
+      });
+      if (match) {
+        keep.add(match.id);
+        continue;
+      }
+      const meta = { [FALL_KEY]: { parent: t.id, part: w.part, sig: w.sig } satisfies FallMeta };
+      if (w.part === "wash") {
+        add.push(
+          buildShape()
+            .shapeType("CIRCLE")
+            .width(size * 0.94)
+            .height(size * 0.94)
+            .position(centre)
+            .fillColor(dead ? "#0d0a07" : "#2a0d0a")
+            .fillOpacity(dead ? 0.6 : 0.35)
+            .strokeWidth(0)
+            .strokeOpacity(0)
+            .attachedTo(t.id)
+            .layer("ATTACHMENT")
+            .zIndex(5)
+            .locked(true)
+            .disableHit(true)
+            .visible(t.visible)
+            .disableAttachmentBehavior(["ROTATION", "COPY", "SCALE"])
+            .metadata(meta)
+            .build(),
+        );
+      } else {
+        const px = 256;
+        const scale = (size * (dead ? 0.5 : 0.36)) / dpi; // the image is one grid cell at this dpi
+        add.push(
+          buildImage(
+            { url: new URL(dead ? "icons/fallen-dead.svg" : "icons/fallen-down.svg", location.href).href, mime: "image/svg+xml", width: px, height: px },
+            { dpi: px, offset: { x: px / 2, y: px / 2 } },
+          )
+            .scale({ x: scale, y: scale })
+            .position(centre)
+            .attachedTo(t.id)
+            .layer("ATTACHMENT")
+            .zIndex(6)
+            .locked(true)
+            .disableHit(true)
+            .visible(t.visible)
+            .disableAttachmentBehavior(["ROTATION", "COPY", "SCALE"])
+            .metadata(meta)
+            .build(),
+        );
+      }
+    }
+  }
+  const stale = marks.filter((e) => !keep.has(e.id)).map((e) => e.id);
   if (stale.length) await OBR.scene.items.deleteItems(stale);
   if (add.length) await OBR.scene.items.addItems(add);
 }
