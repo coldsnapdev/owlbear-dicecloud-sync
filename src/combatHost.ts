@@ -8,6 +8,7 @@ import { addToCombat, addToStandby, removeFromStandby, STANDBY_KEY, FALLEN_KEY, 
 import { FORGE_KEYS } from "./forge";
 import { GM_STATUS_KEY } from "./stripKeys";
 import { BUILD } from "./build";
+import { onTopChange, topOffset } from "./toolOffset";
 import { linkedPerson, loadCast } from "./cast";
 import { getGitHubToken, loadAssignments, loadBestiary, type Assignments, type BestiaryEntry } from "./mailbox";
 
@@ -40,7 +41,7 @@ async function updateStrip() {
       width: w,
       height: wantHeight,
       anchorReference: "POSITION",
-      anchorPosition: { left: Math.round(vw / 2), top: 6 },
+      anchorPosition: { left: Math.round(vw / 2), top: topOffset() },
       anchorOrigin: { horizontal: "CENTER", vertical: "TOP" },
       transformOrigin: { horizontal: "CENTER", vertical: "TOP" },
       hidePaper: true,
@@ -518,6 +519,12 @@ export async function startCombatHost() {
   started = true;
   gm = (await OBR.player.getRole()) === "GM";
   if (gm) contextMenus();
+  // a tool with an options bar was picked (or put down): reopen the strip above or below it
+  onTopChange(() => {
+    if (!stripOpen) return;
+    stripOpen = false;
+    void OBR.popover.close(STRIP_ID).then(() => updateStrip()).catch(() => {});
+  });
   const onItems = () => {
     updateStrip().catch(() => {});
     scheduleBars();

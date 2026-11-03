@@ -4,6 +4,7 @@ import OBR from "@owlbear-rodeo/sdk";
 import { BUILD } from "./build";
 import { CLOCK_HIDE_KEY, CLOCK_KEY, validClock } from "./clock";
 import { inCombat } from "./combat";
+import { onTopChange, topOffset } from "./toolOffset";
 
 const CLOCK_ID = "com.abelon.time/clock";
 let open = false;
@@ -27,7 +28,7 @@ async function update() {
         width: 250,
         height: 58,
         anchorReference: "POSITION",
-        anchorPosition: { left: Math.round(vw / 2), top: 6 },
+        anchorPosition: { left: Math.round(vw / 2), top: topOffset() },
         anchorOrigin: { horizontal: "CENTER", vertical: "TOP" },
         transformOrigin: { horizontal: "CENTER", vertical: "TOP" },
         hidePaper: true,
@@ -59,6 +60,11 @@ export async function startClockHost() {
     timer = setTimeout(() => void update(), 200);
   };
   OBR.room.onMetadataChange(soon);
+  onTopChange(() => {
+    if (!open) return;
+    open = false;
+    void OBR.popover.close(CLOCK_ID).then(soon);
+  });
   let listening = false;
   const hook = async () => {
     if ((await OBR.scene.isReady()) && !listening) {
