@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-11-03T12:11:52.273Z",
+ "savedAt": "2026-11-06T08:49:22.532Z",
  "tokens": {
   "8367561a-6dcc-4e83-a0ca-f90c3a66c604": [
    {
@@ -29,6 +29,11 @@
    {
     "key": "custom:grappling",
     "label": "Grappling"
+   },
+   {
+    "key": "exhaustion",
+    "label": "Exhaustion",
+    "value": 1
    }
   ],
   "b4f3b0d3-edd6-4f28-81eb-e779747d5bdd": [
