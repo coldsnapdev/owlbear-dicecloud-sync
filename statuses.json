@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-11-06T08:49:24.914Z",
+ "savedAt": "2026-11-06T08:49:38.139Z",
  "tokens": {
   "8367561a-6dcc-4e83-a0ca-f90c3a66c604": [
    {
@@ -33,7 +33,7 @@
    {
     "key": "exhaustion",
     "label": "Exhaustion",
-    "value": 2
+    "value": 4
    }
   ],
   "b4f3b0d3-edd6-4f28-81eb-e779747d5bdd": [
