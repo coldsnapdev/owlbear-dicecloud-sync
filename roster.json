@@ -1,43 +1,33 @@
 {
- "savedAt": "2026-11-08T16:06:11.855Z",
+ "savedAt": "2026-11-08T16:07:41.956Z",
  "combatants": [
   {
-   "itemId": "4e4e6e1e-00c8-4171-81f2-05103924cd1b",
-   "name": "Alric Venn",
-   "realName": "Alric Venn",
-   "initiative": 19,
-   "ac": 16
+   "itemId": "1ddd4801-9d63-4950-ab1c-1c3a5f1ef42e",
+   "name": "Arjay",
+   "realName": "Arjay",
+   "initiative": 0,
+   "ac": 18
   },
   {
-   "itemId": "d1c8db8a-8445-4c93-8b92-531e1010e6f2",
-   "name": "Danzel",
-   "initiative": 16,
-   "ac": 16
-  },
-  {
-   "itemId": "f5ee439c-6fc4-4700-9a1d-243fbed5adba",
-   "name": "An",
-   "initiative": 11,
-   "ac": 16
-  },
-  {
-   "itemId": "8c19a71d-a9e8-4fcd-8c3e-257247a4f328",
+   "itemId": "c3f3d29d-0f36-42cb-b644-a58fe175e50d",
    "name": "Tenok",
-   "initiative": 10,
+   "realName": "Tenok",
+   "initiative": 0,
    "ac": 16
   },
   {
-   "itemId": "a0f60a4f-8881-436a-88ad-075fca2c9893",
+   "itemId": "b322e35e-9ade-4455-a362-b4c017fda369",
    "name": "Jenok",
-   "initiative": 8,
+   "realName": "Jenok",
+   "initiative": 0,
    "ac": 15
   },
   {
-   "itemId": "fb3962db-9348-4eee-a22a-9823c553d82d",
-   "name": "Coll",
-   "realName": "Coll",
-   "initiative": 4,
-   "ac": 14
+   "itemId": "e233d53c-49e8-4dc6-bc12-48fedc23bd19",
+   "name": "Wren",
+   "realName": "Wren",
+   "initiative": 0,
+   "ac": 11
   }
  ]
 }
