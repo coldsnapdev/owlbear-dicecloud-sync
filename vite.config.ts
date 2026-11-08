@@ -29,6 +29,7 @@ export default defineConfig({
         fx: resolve(__dirname, "fx.html"),
         card: resolve(__dirname, "card.html"),
         clock: resolve(__dirname, "clock.html"),
+        veil: resolve(__dirname, "veil.html"),
       },
     },
   },

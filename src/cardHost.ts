@@ -1,9 +1,11 @@
-// When a scene with a title card loads, everyone sees it (not when the extension merely reloads
-// itself mid-session). The GM can also play it again for everyone from the popover.
+// A scene's title card plays when the GM reveals the scene (see veilHost), or as it loads for a
+// scene that opens without the black screen. Someone joining a scene already revealed sees it
+// once too. The GM can also play it again for everyone from the popover.
 import OBR from "@owlbear-rodeo/sdk";
 import { BUILD } from "./build";
 import { CARD_CHANNEL, CARD_ID, CARD_KEY, subtitleFor, type CardMeta } from "./cardShared";
 import { CLOCK_KEY, validClock } from "./clock";
+import { isClear, VEIL_OFF_KEY, veilState } from "./veilShared";
 
 export async function playCard(c?: CardMeta) {
   const card = c ?? ((await OBR.scene.getMetadata())[CARD_KEY] as CardMeta | undefined);
@@ -25,13 +27,13 @@ export async function startCardHost() {
   if (started) return;
   started = true;
   OBR.broadcast.onMessage(CARD_CHANNEL, (ev) => void playCard(ev.data as CardMeta | undefined));
-  OBR.scene.onReadyChange((ready) => {
-    if (ready) setTimeout(() => void playCard(), 400);
+  OBR.scene.onReadyChange(async (ready) => {
+    if (ready && (await OBR.scene.getMetadata())[VEIL_OFF_KEY]) setTimeout(() => void playCard(), 400);
   });
   let first = true;
   try {
     first = !sessionStorage.getItem("abelon.card.started");
     sessionStorage.setItem("abelon.card.started", "1");
   } catch { /* treat as first */ }
-  if (first && (await OBR.scene.isReady())) setTimeout(() => void playCard(), 400);
+  if (first && (await OBR.scene.isReady()) && isClear(await veilState())) setTimeout(() => void playCard(), 400);
 }

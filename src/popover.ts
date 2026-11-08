@@ -5,6 +5,7 @@ import { clearMatch, linkedPerson, linkTokens, loadCast, NAMER_KEY, setHidden, t
 import { CARD_CHANNEL, CARD_KEY, type CardMeta } from "./cardShared";
 import { FX_OFF_KEY, FX_PREVIEW_KEY } from "./fxShared";
 import { CLOCK_HIDE_KEY } from "./clock";
+import { hideAgain, reveal, VEIL_OFF_KEY, veilState } from "./veilShared";
 import OBR, { type Item } from "@owlbear-rodeo/sdk";
 import {
   diceCloudLogin,
@@ -58,6 +59,7 @@ app.innerHTML = `
 
   <section class="block">
     <h2>Scene</h2>
+    <div class="row party-row"><button id="veil-btn" type="button">Reveal to players</button><label class="hint"><input id="veil-on" type="checkbox" checked /> Opens on black</label><span class="status" id="veil-status"></span></div>
     <div class="row"><input id="card-title" type="text" placeholder="Title card, e.g. The Shallow Tuber" /></div>
     <div class="row"><input id="card-time" type="text" placeholder="Time of day (blank: from the clock)" /><label class="hint"><input id="card-date" type="checkbox" checked /> Date &amp; time</label></div>
     <div class="row party-row"><button id="card-save" type="button">Save</button><button id="card-show" class="secondary" type="button">Show everyone now</button><span class="status" id="card-status"></span></div>
@@ -119,7 +121,43 @@ async function loadSceneBits() {
 }
 OBR.onReady(() => {
   void loadSceneBits();
-  OBR.scene.onReadyChange(() => void loadSceneBits());
+  void showVeil();
+  OBR.scene.onReadyChange(() => {
+    void loadSceneBits();
+    void showVeil();
+  });
+  OBR.room.onMetadataChange(() => void showVeil());
+});
+
+// --- Scene: the black screen players wait behind until the reveal ------------------------
+const veilBtn = document.getElementById("veil-btn") as HTMLButtonElement;
+const veilOn = document.getElementById("veil-on") as HTMLInputElement;
+async function showVeil() {
+  const ready = await OBR.scene.isReady();
+  veilBtn.disabled = veilOn.disabled = !ready;
+  const st = document.getElementById("veil-status")!;
+  if (!ready) {
+    st.textContent = "";
+    return;
+  }
+  const v = await veilState();
+  veilOn.checked = v.applies;
+  const held = v.applies && !v.revealed;
+  veilBtn.textContent = held ? "Reveal to players" : "Black screen again";
+  veilBtn.className = held ? "" : "secondary";
+  veilBtn.style.display = v.applies ? "" : "none";
+  st.textContent = !v.applies ? "Players see this scene as it loads." : held ? "Players see black." : "Players can see the scene.";
+  st.className = `status ${held ? "error" : "ok"}`;
+}
+veilBtn.addEventListener("click", async () => {
+  const v = await veilState();
+  if (v.applies && !v.revealed) await reveal();
+  else await hideAgain();
+  setTimeout(showVeil, 150);
+});
+veilOn.addEventListener("change", async () => {
+  await OBR.scene.setMetadata({ [VEIL_OFF_KEY]: veilOn.checked ? undefined : true });
+  setTimeout(showVeil, 150);
 });
 const cardNow = (): CardMeta => ({
   title: (document.getElementById("card-title") as HTMLInputElement).value.trim(),

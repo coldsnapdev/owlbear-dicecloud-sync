@@ -4,6 +4,7 @@ import { startCastHost } from "./castHost";
 import { startViewHost } from "./viewHost";
 import { startFxHost } from "./fxHost";
 import { startCardHost } from "./cardHost";
+import { startVeilHost } from "./veilHost";
 import { startClockHost } from "./clockHost";
 import { addMinutes, CLOCK_KEY, clockFromAlmanac, validClock, type Clock } from "./clock";
 import { linkedPerson, loadCast } from "./cast";
@@ -726,6 +727,7 @@ OBR.onReady(async () => {
   startViewHost().catch((err) => log("Default view failed to start:", err));
   startFxHost().catch((err) => log("Screen effects failed to start:", err));
   startCardHost().catch((err) => log("Title cards failed to start:", err));
+  startVeilHost().catch((err) => log("The black screen failed to start:", err));
   startClockHost().catch((err) => log("The on-screen clock failed to start:", err));
 
   if (await OBR.scene.isReady()) {
