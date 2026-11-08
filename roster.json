@@ -1,4 +1,43 @@
 {
- "savedAt": "2026-11-08T16:08:02.629Z",
- "combatants": []
+ "savedAt": "2026-11-08T16:42:38.443Z",
+ "combatants": [
+  {
+   "itemId": "4e4e6e1e-00c8-4171-81f2-05103924cd1b",
+   "name": "Alric Venn",
+   "realName": "Alric Venn",
+   "initiative": 19,
+   "ac": 16
+  },
+  {
+   "itemId": "d1c8db8a-8445-4c93-8b92-531e1010e6f2",
+   "name": "Danzel",
+   "initiative": 16,
+   "ac": 16
+  },
+  {
+   "itemId": "f5ee439c-6fc4-4700-9a1d-243fbed5adba",
+   "name": "An",
+   "initiative": 11,
+   "ac": 16
+  },
+  {
+   "itemId": "8c19a71d-a9e8-4fcd-8c3e-257247a4f328",
+   "name": "Tenok",
+   "initiative": 10,
+   "ac": 16
+  },
+  {
+   "itemId": "a0f60a4f-8881-436a-88ad-075fca2c9893",
+   "name": "Jenok",
+   "initiative": 8,
+   "ac": 15
+  },
+  {
+   "itemId": "fb3962db-9348-4eee-a22a-9823c553d82d",
+   "name": "Coll",
+   "realName": "Coll",
+   "initiative": 4,
+   "ac": 14
+  }
+ ]
 }
