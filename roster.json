@@ -1,26 +1,4 @@
 {
- "savedAt": "2026-11-08T16:07:50.443Z",
- "combatants": [
-  {
-   "itemId": "c3f3d29d-0f36-42cb-b644-a58fe175e50d",
-   "name": "Tenok",
-   "realName": "Tenok",
-   "initiative": 0,
-   "ac": 16
-  },
-  {
-   "itemId": "b322e35e-9ade-4455-a362-b4c017fda369",
-   "name": "Jenok",
-   "realName": "Jenok",
-   "initiative": 0,
-   "ac": 15
-  },
-  {
-   "itemId": "e233d53c-49e8-4dc6-bc12-48fedc23bd19",
-   "name": "Wren",
-   "realName": "Wren",
-   "initiative": 0,
-   "ac": 11
-  }
- ]
+ "savedAt": "2026-11-08T16:08:02.629Z",
+ "combatants": []
 }
